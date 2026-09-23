@@ -56,6 +56,12 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- The separator rows reappeared after a vimrc was sourced (for example by a
+  `BufWritePost` autocommand on `:w`).  Sourcing a vimrc redefines other
+  plugins' augroups, so their `setlocal statusline<` handler ran after Zen's
+  and cleared the blank window-local value.  OnBufWinEnter()/OnWinEnter() now
+  also re-apply it from a zero-delay timer, which runs after every
+  autocommand of the event.
 - The status line above the content and between the left/right pads was
   visible again.  'laststatus' = 0 only removes the status line of the
   bottom-most window of a column; a window that has another window below it

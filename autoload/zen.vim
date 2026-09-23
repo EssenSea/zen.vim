@@ -982,13 +982,46 @@ def OnBufWinEnter()
   endif
   HideLinenr()
   HideStatusline()
+  # Another plugin may reset this from its own BufWinEnter/WinEnter handler;
+  # re-assert after the event has settled (see ScheduleHideStatuslines()).
+  ScheduleHideStatuslines()
   ScheduleConfine()
 enddef
 
 def OnWinEnter()
   if exists('t:zen_pads')
     HideStatusline()
+    ScheduleHideStatuslines()
   endif
+enddef
+
+# Re-apply the blank status line to every window, deferred by one timer turn.
+#
+# Another plugin may clear the window-local 'statusline' from a WinEnter /
+# BufWinEnter autocommand (for example `setlocal statusline<` to make the
+# window inherit a global statusline).  Autocommands run in the order the
+# augroups were defined, so a plugin whose augroup is (re)created later -- as
+# happens when a vimrc is sourced -- runs *after* Zen and undoes the blank
+# value, which makes the separator rows visible again.  A zero-delay timer
+# runs after every autocommand of the current event, so this re-asserts the
+# blank value once the event has settled.  It is de-duplicated like
+# ScheduleConfine() so a burst of events starts only one timer.
+var statusline_pending = false
+
+def ScheduleHideStatuslines()
+  if statusline_pending || !exists('t:zen_pads')
+    return
+  endif
+  statusline_pending = true
+  Defer(() => ApplyStatuslines())
+enddef
+
+def ApplyStatuslines()
+  statusline_pending = false
+  if !exists('#zen') || !exists('t:zen_pads')
+    return
+  endif
+  HideAllStatuslines()
 enddef
 
 # Whether every pad still has a window.  Commands such as :only, <C-w>o or
@@ -1262,6 +1295,7 @@ def AbortOn()
   # Reset the deferred-action flags in case the failure interrupted one.
   resizing = false
   confine_pending = false
+  statusline_pending = false
   pads_check_pending = false
   reanchoring = false
 enddef
