@@ -234,6 +234,17 @@ def SetupPad(bufnr: number, vert: bool, size: number)
   win_execute(winid, 'normal! gg')
 enddef
 
+# Run a callback out of the current autocommand context.  A zero-delay timer
+# is used when available; otherwise the callback runs immediately (the
+# fallback is only hit on builds without |+timers|).
+def Defer(Fn: func)
+  if has('timers')
+    timer_start(0, (_: number) => Fn())
+  else
+    Fn()
+  endif
+enddef
+
 # Bounce the cursor back into the content window.
 def Blank(repel: string)
   var pads = get(t:, 'zen_pads', {})
@@ -243,7 +254,7 @@ def Blank(repel: string)
     # windows from inside CursorMoved/WinEnter is unsafe, so defer it via a
     # zero-delay timer rather than feeding a <Plug> key (which would depend
     # on the user's mappings).
-    timer_start(0, (_: number) => ZenOff())
+    Defer(() => ZenOff())
   endif
   execute 'noautocmd wincmd ' .. repel
 enddef
@@ -485,12 +496,109 @@ def MasterWin(): number
   return bufwinnr(t:zen_master)
 enddef
 
+# Layout capture and rebuild
+# ---------------------------
+# winlayout() returns the window tree of a tab page as nested lists:
+#   ['leaf', {winid}]
+#   ['row',  [child, ...]]   " horizontal row (left to right)
+#   ['col',  [child, ...]]   " vertical column (top to bottom)
+# The helpers below turn that tree into a form that can be replayed on another
+# tab page, dropping the pad windows and remembering each window's buffer and
+# view.  This reproduces nested layouts exactly, unlike inferring the
+# direction from screen coordinates.
+
+# Switch the current window to buffer {buf}.  'winfixbuf' (Vim 9.1) pins a
+# window to its buffer and makes :buffer fail, so it is turned off for the
+# switch and restored afterwards.
+def SwitchBuffer(buf: number)
+  if !bufexists(buf)
+    return
+  endif
+  # getwinvar() only understands the legacy option name without the leading
+  # ampersand, and 'winfixbuf' only exists on Vim 9.1+.
+  var fixed = false
+  if exists('&winfixbuf')
+    var v = getwinvar(0, 'winfixbuf')
+    fixed = type(v) == v:t_number && v != 0
+  endif
+  if fixed
+    setlocal nowinfixbuf
+  endif
+  execute 'buffer ' .. buf
+  if fixed
+    setlocal winfixbuf
+  endif
+enddef
+
+# Replace each leaf with {buf, lnum, col} and drop pad leaves; a node left
+# with a single child is collapsed into that child.
+def CaptureTree(node: any, padlist: list<number>): any
+  if node[0] == 'leaf'
+    var winid: number = node[1]
+    if index(padlist, winbufnr(winid)) >= 0
+      return []
+    endif
+    var cur = getcurpos(winid)
+    return ['leaf', {buf: winbufnr(winid), lnum: cur[1], col: cur[2]}]
+  endif
+  var kids: list<any> = []
+  for child in node[1]
+    var pruned = CaptureTree(child, padlist)
+    if !empty(pruned)
+      kids->add(pruned)
+    endif
+  endfor
+  if empty(kids)
+    return []
+  endif
+  if len(kids) == 1
+    return kids[0]
+  endif
+  return [node[0], kids]
+enddef
+
+# Rebuild the tree in the current window.  For a row the windows are split to
+# the right, for a column downwards, matching winlayout()'s ordering.
+def RebuildTree(node: any)
+  if node[0] == 'leaf'
+    var item: dict<any> = node[1]
+    SwitchBuffer(item.buf)
+    winrestview({lnum: item.lnum, col: item.col, topline: 1, leftcol: 0})
+    return
+  endif
+  var children: list<any> = node[1]
+  RebuildTree(children[0])
+  for i in range(1, len(children) - 1)
+    if node[0] == 'row'
+      execute 'rightbelow vertical split'
+    else
+      execute 'belowright split'
+    endif
+    RebuildTree(children[i])
+  endfor
+enddef
+
 # When a content window lies outside the content column (for example one
 # opened with :topleft split), close it and re-open its buffer with an
 # ordinary :split from the master window.  Only one window is handled per
 # call; BufWinEnter fires again for the rest, which avoids invalidating the
 # window iteration.
+# Autocommands should not change the window layout directly, and opening one
+# window often triggers several events.  ConfineWindows() is therefore
+# scheduled through a zero-delay timer and de-duplicated, so it runs once the
+# editor is back in the main loop and handles all stray windows in one pass.
+var confine_pending = false
+
+def ScheduleConfine()
+  if confine_pending || !exists('t:zen_pads')
+    return
+  endif
+  confine_pending = true
+  Defer(() => ConfineWindows())
+enddef
+
 def ConfineWindows()
+  confine_pending = false
   if !exists('#zen') || !exists('t:zen_pads')
     return
   endif
@@ -504,8 +612,9 @@ def ConfineWindows()
   var pads = t:zen_pads
   var tabnr = tabpagenr()
 
-  # getwininfo() returns one dictionary per window with its position and size,
-  # so no repeated winbufnr()/win_screenpos()/winwidth() calls are needed.
+  # Collect the buffers of every content window that sticks out of the
+  # content column.  getwininfo() gives the geometry in one call.
+  var stray: list<number> = []
   for info in getwininfo()
     if info.tabnr != tabnr
       continue
@@ -515,19 +624,39 @@ def ConfineWindows()
         || info.winnr == master_win
       continue
     endif
-    var wincol = info.wincol
-    if wincol >= left && wincol + info.width - 1 <= right
+    if info.wincol >= left && info.wincol + info.width - 1 <= right
       continue
     endif
+    stray->add(buf)
+  endfor
 
-    # Outside the column: close and re-open from the master as a split.
+  # Re-open each stray buffer as an ordinary split from the master window.
+  for buf in stray
+    if !bufexists(buf)
+      continue
+    endif
+    var master = MasterWin()
+    if master <= 0
+      break
+    endif
     var v = winsaveview()
-    var target = buf
-    execute ':' .. master_win .. 'wincmd w'
-    execute ':' .. info.winnr .. 'wincmd c'
-    execute 'sbuffer ' .. target
+    # Locate the stray window again: earlier fixes may have renumbered windows.
+    var w = bufwinnr(buf)
+    if w <= 0 || w == master
+      continue
+    endif
+    execute ':' .. master .. 'wincmd w'
+    var was_fixed = false
+    if exists('&winfixbuf') && &winfixbuf
+      setlocal nowinfixbuf
+      was_fixed = true
+    endif
+    execute ':' .. w .. 'wincmd c'
+    execute 'sbuffer ' .. buf
+    if was_fixed
+      setlocal winfixbuf
+    endif
     winrestview(v)
-    return
   endfor
 enddef
 
@@ -655,7 +784,7 @@ def OnBufWinEnter()
   endif
   HideLinenr()
   HideStatusline()
-  ConfineWindows()
+  ScheduleConfine()
 enddef
 
 def OnWinEnter()
@@ -775,29 +904,15 @@ def ZenOff()
   # tab-local and the original tab is restored before the end of this function.
   var saved_highlights = get(t:, 'zen_highlights', [])
 
-  # Collect buffer, cursor and screen position of every content window.
-  # getwininfo() supplies the geometry, getcurpos() the cursor.
-  var content: list<dict<any>> = []
-  var tabnr = tabpagenr()
-  for info in getwininfo()
-    if info.tabnr != tabnr
-      continue
+  # Capture the content-window layout of the Zen tab as a winlayout() tree
+  # with the pad windows removed.  This reproduces nested layouts exactly.
+  var padlist: list<number> = []
+  for key in ['t', 'b', 'l', 'r']
+    if has_key(pads, key)
+      padlist->add(pads[key])
     endif
-    var buf = info.bufnr
-    if buf == get(pads, 't', -1) || buf == get(pads, 'b', -1)
-        || buf == get(pads, 'l', -1) || buf == get(pads, 'r', -1)
-      continue
-    endif
-    var cur = getcurpos(info.winid)
-    content->add({
-      buf: buf,
-      lnum: cur[1],
-      col: cur[2],
-      row: info.winrow,
-      col_pos: info.wincol,
-    })
   endfor
-  content->sort((a, b) => a.row != b.row ? a.row - b.row : a.col_pos - b.col_pos)
+  var layout = CaptureTree(winlayout(), padlist)
 
   var zen_tab = tabpagenr()
 
@@ -812,31 +927,8 @@ def ZenOff()
     execute ':' .. orig_tab .. 'tabnext'
   endif
 
-  if !empty(content)
-    if winbufnr(0) != content[0].buf && bufexists(content[0].buf)
-      execute 'buffer ' .. content[0].buf
-    endif
-    winrestview({lnum: content[0].lnum, col: content[0].col, topline: 1, leftcol: 0})
-
-    var base = content[0]
-    for i in range(1, len(content) - 1)
-      var item = content[i]
-      var cmd = ''
-      if item.col_pos > base.col_pos
-        cmd = 'rightbelow vertical split'
-      elseif item.col_pos < base.col_pos
-        cmd = 'leftabove vertical split'
-      elseif item.row >= base.row
-        cmd = 'belowright split'
-      else
-        cmd = 'aboveleft split'
-      endif
-      execute cmd
-      if bufexists(item.buf)
-        execute 'buffer ' .. item.buf
-      endif
-      winrestview({lnum: item.lnum, col: item.col, topline: 1, leftcol: 0})
-    endfor
+  if !empty(layout)
+    RebuildTree(layout)
   endif
 
   # Close the Zen tab.

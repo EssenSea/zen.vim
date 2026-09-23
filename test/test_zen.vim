@@ -72,6 +72,20 @@ def ZenPads(): dict<number>
   return get(t:, 'zen_pads', {})
 enddef
 
+# Structural shape of the current tab's windows as a sorted list of
+# [screen_row, screen_col, width, height], independent of window ids.
+def LayoutShape(): list<list<number>>
+  var shape: list<list<number>> = []
+  for info in getwininfo()
+    if info.tabnr != tabpagenr()
+      continue
+    endif
+    shape->add([info.winrow, info.wincol, info.width, info.height])
+  endfor
+  shape->sort((a, b) => a[0] != b[0] ? a[0] - b[0] : a[1] - b[1])
+  return shape
+enddef
+
 def Setup()
   set nocompatible
   set nomore noswapfile nobackup nowritebackup
@@ -94,7 +108,10 @@ enddef
 # Helper: ConfineWindows() is script-local and cannot be called from the
 # tests, so drive it by re-triggering BufWinEnter.
 def ConfineSettle()
+  # OnBufWinEnter() schedules ConfineWindows() through a zero-delay timer;
+  # sleep so the main loop runs the callback.
   doautocmd BufWinEnter
+  sleep 30m
 enddef
 
 # ---------------------------------------------------------------------------
@@ -481,6 +498,52 @@ Test('ConfineWindows brings full-width window back into content column', () => {
   endfor
   # Apart from the top/bottom pads, no window should span the screen.
   assert_true(outside <= 2)
+  zen#Close()
+})
+
+Test('nested window layout is restored exactly on leave', () => {
+  # Build a nested layout: a row of (single window) and (column of two).
+  var a = tempname()
+  var b = tempname()
+  var c = tempname()
+  writefile(['A'], a)
+  writefile(['B'], b)
+  writefile(['C'], c)
+  execute 'edit ' .. a
+  vsplit
+  execute 'buffer ' .. bufadd(b)
+  wincmd l
+  split
+  execute 'buffer ' .. bufadd(c)
+  # Remember the neutral structural shape (positions only).
+  var before = LayoutShape()
+  zen#Open('100x30')
+  zen#Close()
+  assert_equal(before, LayoutShape())
+  assert_equal(1, tabpagenr('$'))
+  for f in [a, b, c]
+    silent! execute 'bwipeout! ' .. f
+  endfor
+})
+
+Test('all stray windows are confined in one deferred pass', () => {
+  zen#Open('80x20')
+  topleft new
+  topleft new
+  call ConfineSettle()
+  # Every content window must now fit inside the content column.
+  var lpad = bufwinnr(ZenPads().l)
+  var rpad = bufwinnr(ZenPads().r)
+  var left = lpad > 0 ? win_screenpos(lpad)[1] + winwidth(lpad) : 1
+  var right = rpad > 0 ? win_screenpos(rpad)[1] - 1 : &columns
+  for i in range(1, winnr('$'))
+    var b = winbufnr(i)
+    if b == ZenPads().t || b == ZenPads().b || b == ZenPads().l || b == ZenPads().r
+      continue
+    endif
+    var col = win_screenpos(i)[1]
+    assert_true(col >= left && col + winwidth(i) - 1 <= right)
+  endfor
   zen#Close()
 })
 

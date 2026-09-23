@@ -30,8 +30,35 @@ Window information ~
 	the buffer number, geometry and |window-ID|.  It is used instead of
 	repeated |winbufnr()|, |win_screenpos()| and |winwidth()| calls when
 	scanning the windows of the current tab:
-		* ConfineWindows()
+		* ConfineWindows() when looking for stray windows.
 		* ZenOff() when collecting the content-window layout.
+
+Layout capture with winlayout() ~
+	|winlayout()| returns the window tree of a tab page as nested lists:
+		['leaf', {winid}]
+		['row',  [child, ...]]	" horizontal row, left to right
+		['col',  [child, ...]]	" vertical column, top to bottom
+	ZenOff() captures this tree, replaces each leaf with the buffer and
+	cursor it holds, and drops the pad windows (nodes left with a single
+	child are collapsed).  RebuildTree() then replays the tree on the
+	original tab page with `:split` / `:vertical split`, so nested layouts
+	are reproduced exactly.  This replaced an earlier approach that
+	inferred the split direction from screen coordinates, which could not
+	represent nested or unequal layouts.
+
+Confining stray windows ~
+	Commands such as |:help| or |:copen| open windows with
+	`:topleft split`, which span the whole tab and would destroy the
+	margins.  ConfineWindows() finds every content window that is not
+	fully inside the content column (see ContentBounds()) and re-opens
+	its buffer as an ordinary split from the master window.
+
+	It is not called directly from the BufWinEnter autocommand.  Instead
+	ScheduleConfine() defers it through a zero-delay timer (see
+	|zen-internals-timers|) and de-duplicates the request, so the layout
+	is only changed once the editor is back in the main loop, and all
+	stray windows are handled in a single pass.  Changing the layout from
+	inside an autocommand is unsafe and would also re-trigger the event.
 
 Window identity ~
 	A window's |window-ID| is stable while the window exists, so it is

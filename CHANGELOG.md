@@ -5,8 +5,20 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Window layouts are now captured with |winlayout()| and replayed on leave,
+  so nested or unequal splits are restored exactly.  The previous code
+  inferred the split direction from screen coordinates.
+- `ConfineWindows()` is deferred through a zero-delay timer and handles all
+  stray windows in one pass, instead of changing the layout from inside the
+  BufWinEnter autocommand one window at a time.
+
 ### Added
 
+- Compatibility: buffer switches respect 'winfixbuf' (Vim 9.1) by temporarily
+  clearing it, and the deferred actions fall back to direct calls when the
+  build has no |+timers| support.
 - Public API reduced to `zen#Open()`, `zen#Close()` and `zen#Toggle()`; other
   functions are no longer exported.  Documented in `doc/zen.txt` under
   |zen-api|.
