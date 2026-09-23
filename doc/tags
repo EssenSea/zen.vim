@@ -5,6 +5,7 @@ g:zen_bg	zen.txt	/*g:zen_bg*
 g:zen_callbacks	zen.txt	/*g:zen_callbacks*
 g:zen_decoration_density	zen.txt	/*g:zen_decoration_density*
 g:zen_decoration_elements	zen.txt	/*g:zen_decoration_elements*
+g:zen_disable_legacy_warning	zen.txt	/*g:zen_disable_legacy_warning*
 g:zen_height	zen.txt	/*g:zen_height*
 g:zen_linenr	zen.txt	/*g:zen_linenr*
 g:zen_margin_bottom	zen.txt	/*g:zen_margin_bottom*
@@ -23,6 +24,7 @@ zen-installation	zen.txt	/*zen-installation*
 zen-internals	zen-internals.txt	/*zen-internals*
 zen-internals-autocmds	zen-internals.txt	/*zen-internals-autocmds*
 zen-internals-contents	zen-internals.txt	/*zen-internals-contents*
+zen-internals-failure	zen-internals.txt	/*zen-internals-failure*
 zen-internals-highlight	zen-internals.txt	/*zen-internals-highlight*
 zen-internals-mappings	zen-internals.txt	/*zen-internals-mappings*
 zen-internals-messages	zen-internals.txt	/*zen-internals-messages*

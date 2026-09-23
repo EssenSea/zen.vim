@@ -1,23 +1,30 @@
-vim9script noclear
+" zen.vim: Distraction-free writing mode
+"
+" Maintainer:   zen.vim fork contributors
+" Last Change:  2026 Sep 23
+" License:      MIT (see LICENSE)
+"
+" The implementation lives in autoload/zen.vim; this file only defines the
+" user-facing commands and <Plug> mappings, following the conventions used by
+" Vim's bundled plugins (see :help package-create and plugin/helpcurwin.vim).
+"
+" This file uses the vim9-mix layout (see :help vim9-mix): the version check
+" below is legacy Vim script so that an older Vim, which does not understand
+" :vim9script, exits cleanly instead of reporting an error.  Everything after
+" the :vim9script command is Vim9 script.
 
-# zen.vim: Distraction-free writing mode
-#
-# Maintainer:   zen.vim fork contributors
-# Last Change:  2026 Sep 23
-# License:      MIT (see LICENSE)
-#
-# The implementation lives in autoload/zen.vim; this file only defines the
-# user-facing commands and <Plug> mappings, following the conventions used by
-# Vim's bundled plugins (see :help package-create and plugin/helpcurwin.vim).
-
-# Vim 9.1.0000 provides the Vim9script features used here (import autoload,
-# typed export def, <ScriptCmd>, WinResized).  See :help vim9-mix.
+" zen.vim needs Vim 9.1.0000: import autoload, typed export def, <ScriptCmd>
+" and Vim9script in general.  See doc/zen.txt (Requirements).
 if !has('patch-9.1.0000')
-  echohl ErrorMsg
-  echomsg 'zen: this plugin requires Vim 9.1.0000 or newer (Vim9script)'
-  echohl None
+  if !get(g:, 'zen_disable_legacy_warning', 0)
+    echohl WarningMsg
+    echomsg 'zen.vim needs Vim 9.1.0000 or newer; the plugin is not loaded'
+    echohl None
+  endif
   finish
 endif
+
+vim9script noclear
 
 import autoload '../autoload/zen.vim'
 

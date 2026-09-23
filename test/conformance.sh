@@ -26,8 +26,8 @@ check() { # description, shell command
 check "package layout (plugin/autoload/doc/tags)" \
   "[ -f plugin/zen.vim ] && [ -f autoload/zen.vim ] && [ -f doc/zen.txt ] && [ -f doc/zen-internals.txt ] && [ -s doc/tags ]"
 
-check "plugin is Vim9script" \
-  "head -1 plugin/zen.vim | grep -q '^vim9script'"
+check "plugin uses the vim9-mix layout" \
+  "head -1 plugin/zen.vim | grep -q '^\"' && grep -q '^vim9script' plugin/zen.vim && grep -q \"has('patch-9.1.0000')\" plugin/zen.vim"
 
 check "autoload is Vim9script" \
   "head -1 autoload/zen.vim | grep -q '^vim9script'"

@@ -21,6 +21,7 @@ documentation.  Only Vim 9.1.0000 and newer is supported.
 	7. Window resize events		|zen-internals-resize|
 	8. Deferred actions		|zen-internals-timers|
 	9. Messages			|zen-internals-messages|
+	10. Failure handling		|zen-internals-failure|
 
 ==============================================================================
 2. Windows and tabs	*zen-internals-windows*
@@ -176,5 +177,25 @@ user's mappings, unlike feeding a <Plug> key.
 User-visible text is passed through |gettext()|; the domain is bound with
 |bindtextdomain()| to the package `lang/` directory.  See
 |zen-translation|.
+
+==============================================================================
+10. Failure handling		*zen-internals-failure*
+
+Setting up a session creates windows, installs mappings and changes global
+options.  If any of that fails, for example because a window cannot be
+created or a BufWinEnter autocommand throws, the partial state must not be
+left behind.
+
+ZenOn() therefore wraps the setup in a try/catch.  On failure it calls
+AbortOn(), which removes the autocommands, unmaps the temporary keys, returns
+to the original tab, closes the Zen tab, and restores the options, highlights
+and plugin state that had already been changed.  Every step is written
+defensively because it may run after an arbitrary failure.  The original
+error is re-thrown so the user still sees the cause.
+
+t:zen_on records that the session was fully created.  Callbacks
+(g:zen_callbacks[0]) and the |ZenEnter| event are fired only after a
+successful setup, so a throwing callback cannot leave a half-built layout
+behind; the session stays valid and can be closed as usual.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

@@ -35,8 +35,12 @@ packadd zen
 
 *zen-requirements*
 Requirements: ~
-Vim 9.1.0000 or newer with the |+vim9script| feature.  If the feature is
-missing the plugin prints a message and does not load.
+Vim 9.1.0000 or newer with the |+vim9script| feature.
+
+The plugin is written in the vim9-mix layout (see |vim9-mix|): the version
+check in plugin/zen.vim is legacy Vim script, so on an older Vim it exits
+cleanly with a warning instead of failing on the `:vim9script` command.
+Set |g:zen_disable_legacy_warning| to suppress that warning.
 
 The optional |zen-translation| support requires |+multi_lang| and the
 |gettext()| machinery.
@@ -111,7 +115,14 @@ g:zen_decoration_density ~
 			Probability, between 0.0 and 1.0, that a cell
 			receives a decoration element.
 
-						*g:zen_callbacks*
+						*g:zen_disable_legacy_warning*
+g:zen_disable_legacy_warning ~
+boolean, default 0 ~
+When 1, do not print a warning when the plugin is
+loaded on a Vim older than 9.1.0000 (the plugin
+still does not load, see |zen-requirements|).
+
+*g:zen_callbacks*
 g:zen_callbacks	list, default not set ~
 			A list of two |Funcref|s: the first is called after
 			entering Zen, the second after leaving it.

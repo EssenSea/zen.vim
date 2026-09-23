@@ -806,68 +806,125 @@ def ZenOn(dim_arg: string)
   # that is closed again on exit.
   tab split
 
-  t:zen_orig_winid = orig_winid
-  t:zen_orig_tab = orig_tab
-  t:zen_master = winbufnr(0)
-  t:zen_winid = win_getid()
-  t:zen_dim = dim
-  t:zen_dim_expr = dim_arg
-  t:zen_pads = {}
-  t:zen_revert = revert
+  # From here on the session is being set up.  If anything fails (a window
+  # cannot be created, a user callback throws, ...) the partial state must not
+  # be left behind, so the setup is guarded and rolled back by AbortOn().
+  try
+    t:zen_orig_winid = orig_winid
+    t:zen_orig_tab = orig_tab
+    t:zen_master = winbufnr(0)
+    t:zen_winid = win_getid()
+    t:zen_dim = dim
+    t:zen_dim_expr = dim_arg
+    t:zen_pads = {}
+    t:zen_revert = revert
 
-  t:zen_disabled = DisablePlugins()
-  t:zen_maps = InstallMaps()
+    t:zen_disabled = DisablePlugins()
+    t:zen_maps = InstallMaps()
 
-  HideLinenr()
+    HideLinenr()
 
-  # Global options: make all windows as small as possible so the pads can
-  # set the geometry precisely.  Lower the minimum sizes before setting the
-  # sizes to 1, or Vim raises E591/E592 on a small layout.
-  set winminheight=1 winminwidth=1
-  set winheight=1 winwidth=1
-  set laststatus=0 showtabline=0 noruler
-  set fillchars+=vert:\  fillchars+=stl:\  fillchars+=stlnc:\ 
-  set sidescroll=1 sidescrolloff=0
+    # Global options: make all windows as small as possible so the pads can
+    # set the geometry precisely.  Lower the minimum sizes before setting the
+    # sizes to 1, or Vim raises E591/E592 on a small layout.
+    set winminheight=1 winminwidth=1
+    set winheight=1 winwidth=1
+    set laststatus=0 showtabline=0 noruler
+    set fillchars+=vert:\  fillchars+=stl:\  fillchars+=stlnc:\ 
+    set sidescroll=1 sidescrolloff=0
 
-  if has('gui_running')
-    set guioptions-=l
-    set guioptions-=L
-  endif
+    if has('gui_running')
+      set guioptions-=l
+      set guioptions-=L
+    endif
 
-  for pad in PAD_DEFS
-    t:zen_pads[pad.key] = InitPad(pad.cmd)
-  endfor
+    for pad in PAD_DEFS
+      t:zen_pads[pad.key] = InitPad(pad.cmd)
+    endfor
 
-  ResizePads()
+    ResizePads()
 
-  # Bind the bounce-back autocommands once, after the pads are laid out;
-  # ResizePads() itself only resizes them.
-  for pad in PAD_DEFS
-    BindPadAutocmd(t:zen_pads[pad.key], pad.repel)
-  endfor
+    # Bind the bounce-back autocommands once, after the pads are laid out;
+    # ResizePads() itself only resizes them.
+    for pad in PAD_DEFS
+      BindPadAutocmd(t:zen_pads[pad.key], pad.repel)
+    endfor
 
-  # Remember the highlight attributes Tranquilize() is about to change.
-  t:zen_highlights = SaveHighlights()
-  Tranquilize()
+    # Remember the highlight attributes Tranquilize() is about to change.
+    t:zen_highlights = SaveHighlights()
+    Tranquilize()
 
-  augroup zen
-    autocmd!
-    autocmd TabLeave    * ++nested call ZenOff()
-    autocmd VimResized  * call ResizePads()
-    # WinResized (Vim 9.0.0917) is more precise than VimResized.
-    autocmd WinResized  * call ResizePads()
-    autocmd ColorScheme * call Tranquilize()
-    # Only act on this tab; ConfineWindows() pulls stray windows back.
-    autocmd BufWinEnter * call OnBufWinEnter()
-    autocmd WinEnter    * call OnWinEnter()
-  augroup END
+    augroup zen
+      autocmd!
+      autocmd TabLeave    * ++nested call ZenOff()
+      autocmd VimResized  * call ResizePads()
+      # WinResized (Vim 9.0.0917) is more precise than VimResized.
+      autocmd WinResized  * call ResizePads()
+      autocmd ColorScheme * call Tranquilize()
+      # Only act on this tab; ConfineWindows() pulls stray windows back.
+      autocmd BufWinEnter * call OnBufWinEnter()
+      autocmd WinEnter    * call OnWinEnter()
+    augroup END
 
-  HideStatusline()
+    HideStatusline()
+  catch
+    AbortOn()
+    throw v:exception
+  endtry
+
+  # Callbacks run after the session is complete, so a throwing callback cannot
+  # leave a half-built layout behind.
   var callbacks = get(g:, 'zen_callbacks', [])
   if len(callbacks) > 0 && type(callbacks[0]) == v:t_func
     callbacks[0]()
   endif
   doautocmd <nomodeline> User ZenEnter
+enddef
+
+# Undo a partially built session after ZenOn() failed.  It differs from
+# ZenOff() in that there is no content layout to transplant: the Zen tab is
+# simply discarded and everything that was already changed is restored.  Every
+# step is written defensively because it may run after an arbitrary failure.
+def AbortOn()
+  # Drop the autocommands first so they cannot fire while we clean up.
+  if exists('#zen')
+    augroup zen
+      autocmd!
+    augroup END
+    augroup! zen
+  endif
+  if exists('#zen_pad')
+    augroup zen_pad
+      autocmd!
+    augroup END
+    augroup! zen_pad
+  endif
+
+  UnmapWindowKeys(get(t:, 'zen_maps', []))
+
+  var revert = get(t:, 'zen_revert', {})
+  var disabled = get(t:, 'zen_disabled', {})
+  var saved_highlights = get(t:, 'zen_highlights', [])
+  var orig_winid = get(t:, 'zen_orig_winid', 0)
+  var orig_tab = get(t:, 'zen_orig_tab', 0)
+  var zen_tab = tabpagenr()
+
+  # Leave the Zen tab for the original one.
+  if orig_winid > 0 && win_gotoid(orig_winid)
+    # done
+  elseif orig_tab > 0 && orig_tab <= tabpagenr('$')
+    execute ':' .. orig_tab .. 'tabnext'
+  endif
+
+  if zen_tab != tabpagenr() && zen_tab <= tabpagenr('$')
+    execute ':' .. zen_tab .. 'tabclose!'
+  endif
+
+  if !empty(revert)
+    RestoreOptions(revert)
+  endif
+  RestoreHighlights(saved_highlights)
+  EnablePlugins(disabled)
 enddef
 
 # Leave Zen and transplant the content-window layout back to the

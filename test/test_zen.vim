@@ -72,6 +72,27 @@ def ZenPads(): dict<number>
   return get(t:, 'zen_pads', {})
 enddef
 
+def ThrowingCallback()
+  throw 'callback boom'
+enddef
+
+# Install a BufWinEnter autocommand that throws, to make ZenOn() fail part
+# way through, and remove it again.
+def WithFailingBufWinEnter(Fn: func)
+  augroup zen_test_fault
+    autocmd!
+    autocmd BufWinEnter * throw 'test BufWinEnter failure'
+  augroup END
+  try
+    Fn()
+  finally
+    augroup zen_test_fault
+      autocmd!
+    augroup END
+    augroup! zen_test_fault
+  endtry
+enddef
+
 # Structural shape of the current tab's windows as a sorted list of
 # [screen_row, screen_col, width, height], independent of window ids.
 def LayoutShape(): list<list<number>>
@@ -344,6 +365,46 @@ Test('resizing an active session', () => {
   assert_equal(60, dim.width)
   assert_equal(10, dim.height)
   zen#Close()
+})
+
+Test('a failure during ZenOn rolls the session back completely', () => {
+  var caught = ''
+  WithFailingBufWinEnter(() => {
+    try
+      zen#Open('60x16')
+    catch
+      caught = v:exception
+    endtry
+  })
+  # The failure must have been propagated...
+  assert_true(!empty(caught))
+  # ...and nothing must be left behind.
+  assert_false(ZenActive())
+  assert_equal(0, exists('#zen'))
+  assert_equal(0, exists('#zen_pad'))
+  assert_equal(0, exists('t:zen_pads'))
+  assert_equal(1, tabpagenr('$'))
+  assert_equal(1, winnr('$'))
+  assert_true(empty(maparg('<C-w>R', 'n')))
+  assert_true(empty(maparg('<C-w>=', 'n')))
+})
+
+Test('a throwing ZenEnter callback leaves a usable session', () => {
+  # Callbacks run after the session is complete, so a throw must not corrupt
+  # the session; it should still be active and closable.
+  var caught = ''
+  g:zen_callbacks = [ThrowingCallback]
+  try
+    zen#Open('60x16')
+  catch
+    caught = v:exception
+  endtry
+  unlet g:zen_callbacks
+  assert_true(!empty(caught))
+  assert_true(ZenActive())
+  zen#Close()
+  assert_false(ZenActive())
+  assert_equal(1, tabpagenr('$'))
 })
 
 # ---------------------------------------------------------------------------

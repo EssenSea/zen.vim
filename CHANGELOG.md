@@ -5,6 +5,21 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- plugin/zen.vim now uses the vim9-mix layout: the version check is legacy
+  Vim script, so loading the plugin on a Vim older than 9.1.0000 exits
+  cleanly with a warning instead of failing on the `:vim9script` command.
+  Set `g:zen_disable_legacy_warning` to silence the warning.
+
+### Fixed
+
+- A failure part way through opening Zen (for example a window that cannot be
+  created, or a throwing BufWinEnter autocommand) used to leave a half-built
+  session behind: an extra tab, stray `t:zen_*` variables and, most visibly,
+  the temporary `<C-w>` mappings still installed.  The setup is now guarded
+  and rolled back by `AbortOn()`; the original error is re-thrown.
+
 ### Internal
 
 - Slimmed the implementation: the four pad windows are described once in a
