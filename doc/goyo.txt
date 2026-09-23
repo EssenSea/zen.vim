@@ -1,177 +1,205 @@
-*goyo.txt*  无干扰写作模式 (Distraction-free writing)          *goyo* *goyo.vim*
+*goyo.txt*	For Vim version 9.1.	Last change: 2026 Sep 23
 
-                            GOYO.VIM
-                    无干扰写作模式 / Distraction-free writing
-                          For Vim version 9.1.0000+
 
-goyo.vim 提供一个 Vim 的免打扰写作环境：
-缓冲区居中显示，四周由自动调整的填充窗口（pad）撑开，配合被隐藏的
-状态栏、行号等界面元素，让你专注于正文。
+		  VIM REFERENCE MANUAL	  by goyo.vim contributors
 
-本文件对应的实现为 Vim9script（autoload/goyo.vim）。
+Distraction-free writing mode	*goyo* *goyo.vim*
+==============================================================================
+
+1. Introduction	*goyo-introduction*
+
+goyo.vim provides a distraction-free writing environment for Vim.  The text
+of the current window is centred on the screen, the surrounding space is
+filled by automatically sized padding windows, and interface elements such as
+the status line, line numbers and the color column are hidden while Goyo is
+active.
+
+The plugin is written in Vim9script and is organised as a standard Vim
+package.  See |goyo-installation| for how to install it and |goyo-command| for
+the commands it provides.
 
 ==============================================================================
-目录                                                     *goyo-contents*
+2. Installation	*goyo-installation*
 
-  1. 安装                      |goyo-install|
-  2. 快速开始                  |goyo-quickstart|
-  3. 命令                      |goyo-command|
-  4. 选项                      |goyo-options|
-  5. 回调与事件                |goyo-callbacks|
-  6. 映射                      |goyo-mappings|
-  7. 已知问题                  |goyo-issues|
-  8. 开发与测试                |goyo-development|
+Use a plugin manager, or install manually by adding this directory to
+'runtimepath': >vim
 
-==============================================================================
-1. 安装                                                         *goyo-install*
+set runtimepath+=/path/to/goyo.vim
+<
+Vim loads |plugin/goyo.vim| at startup and defines the |:Goyo| command.  To
+load the plugin only on demand, install it under 'packpath' and use
+|:packadd|: >vim
 
-使用任意插件管理器，或手动安装：把本仓库目录放入 'runtimepath'：
+packadd goyo
+<
 
-    set runtimepath+=/path/to/goyo.vim
+*goyo-requirements*
+Requirements: ~
+Vim 9.1.0000 or newer with the |+vim9script| feature.  If the feature is
+missing the plugin prints a message and does not load.
 
-插件会在启动时通过 plugin/goyo.vim 定义 |:Goyo| 命令。
-
-依赖：需要带 |+vim9script| 的 Vim（Vim 9.1.0000 及以上）。
-若 Vim 编译时未包含该特性，插件会给出提示并跳过加载。
-
-==============================================================================
-2. 快速开始                                                 *goyo-quickstart*
-
-    :Goyo
-
-退出：
-
-    :Goyo
-
-或使用 <Plug> 映射（见 |goyo-mappings|）。
+The optional |goyo-translation| support requires |+multi_lang| and the
+|gettext()| machinery.
 
 ==============================================================================
-3. 命令                                                         *goyo-command*
+3. Usage						*goyo-command*
 
-                                                                *:Goyo*
-:Goyo [dimensions]      进入 Goyo。再次执行则退出。
+							*:Goyo*
+:Goyo [dimensions]
+		Enter Goyo.  Run |:Goyo| again to leave.
+		[dimensions] sets the size of the content area:
+			{width}			width in columns
+			{width}%		width as a percentage
+			{width}x{height}	width and height
+			{width}%x{height}%	both as percentages
+		A '+' or '-' may follow a width or height to offset the
+		content within the available space, e.g. `:Goyo 90-10x50%+2`.
 
-                        [dimensions] 可指定内容窗口的尺寸：
-                          {width}               宽度（列数）
-                          {width}%              宽度（屏幕百分比）
-                          {width}x{height}      宽度 x 高度
-                          {width}%x{height}%    百分比形式
-                        width/height 前可加 '+' / '-' 表示相对偏移，
-                        例如 `:Goyo 100-10x50%+2`。
+:Goyo [dimensions]
+		While Goyo is active, re-apply the given dimensions.
+:Goyo!			Leave Goyo unconditionally, ignoring errors.
 
-:Goyo [dimensions]      在已激活时，以新的尺寸重新排布（不会重建会话）。
-:Goyo!                  强制退出，忽略任何错误。
+Examples: >vim
 
-示例：
-    :Goyo 80            内容宽 80 列
-    :Goyo 80x20         内容 80 列 x 20 行
-    :Goyo 50%x70%       宽 50%、高 70%
-    :Goyo 90-10         宽 90 列且左移 10 列
-
-==============================================================================
-4. 选项                                                         *goyo-options*
-
-                                                            *g:goyo_width*
-g:goyo_width            默认：80
-                        内容窗口默认宽度（列数或百分比字符串）。
-
-                                                            *g:goyo_height*
-g:goyo_height           默认：'85%'
-                        内容窗口默认高度。
-
-                                                        *g:goyo_margin_top*
-g:goyo_margin_top       默认：4
-                        顶部页边距。若设置了 margin_top/margin_bottom，
-                        则优先于 g:goyo_height。
-
-                                                     *g:goyo_margin_bottom*
-g:goyo_margin_bottom    默认：4
-                        底部页边距。
-
-                                                            *g:goyo_bg*
-g:goyo_bg               默认：'black'
-                        当无法从 'Normal' 高亮取得背景色时，用于填充的
-                        回退背景色。
-
-                                                            *g:goyo_linenr*
-g:goyo_linenr           默认：0
-                        设为 1 则在 Goyo 中保留行号。
-
-                                          *g:goyo_decoration_elements*
-g:goyo_decoration_elements
-                        默认：['~']
-                        用于填充窗口 ASCII 装饰的元素列表。
-
-                                           *g:goyo_decoration_density*
-g:goyo_decoration_density
-                        默认：0.0
-                        装饰密度，范围 0.0 到 1.0。
+	:Goyo			" use the configured defaults
+	:Goyo 80		" 80 columns wide
+	:Goyo 80x20	" 80 columns by 20 lines
+	:Goyo 50%x70%	" 50% wide, 70% high
+	:Goyo 90-10
+<
 
 ==============================================================================
-5. 回调与事件                                               *goyo-callbacks*
+4. Options						*goyo-options*
 
-                                                *g:goyo_callbacks*
-g:goyo_callbacks        默认：未设置
-                        一个包含两个 |Funcref| 的列表：
-                          [0] 进入 Goyo 后调用
-                          [1] 离开 Goyo 后调用
+						*g:goyo_width*
+g:goyo_width		number or string, default 80 ~
+			Default width of the content window, as a number of
+			columns or a percentage string.
 
-                                                             *GoyoEnter*
-在进入 Goyo 后触发 |User| 自动命令事件 `GoyoEnter`：
-    autocmd User GoyoEnter call MyOnGoyoEnter()
+						*g:goyo_height*
+g:goyo_height		number or string, default '85%' ~
+			Default height of the content window.
 
-                                                             *GoyoLeave*
-在离开 Goyo 后触发 |User| 自动命令事件 `GoyoLeave`：
-    autocmd User GoyoLeave call MyOnGoyoLeave()
+						*g:goyo_margin_top*
+g:goyo_margin_top	number or string, default 4 ~
+			Top margin.  When |g:goyo_margin_top| or
+			|g:goyo_margin_bottom| is set, these take precedence
+			over |g:goyo_height|.
+
+						*g:goyo_margin_bottom*
+g:goyo_margin_bottom	number or string, default 4 ~
+			Bottom margin.
+
+						*g:goyo_bg*
+g:goyo_bg		string, default 'black' ~
+			Fallback background colour used when the background
+			colour of the |hl-Normal| group cannot be determined.
+
+						*g:goyo_linenr*
+g:goyo_linenr		boolean, default 0 ~
+			When 1, keep line numbers visible in the content
+			window.  By default they are hidden.
+
+						*g:goyo_decoration_elements*
+g:goyo_decoration_elements ~
+			list of strings, default ['~'] ~
+			Elements used to decorate the padding windows.
+
+						*g:goyo_decoration_density*
+g:goyo_decoration_density ~
+			number, default 0.0 ~
+			Probability, between 0.0 and 1.0, that a cell
+			receives a decoration element.
+
+						*g:goyo_callbacks*
+g:goyo_callbacks	list, default not set ~
+			A list of two |Funcref|s: the first is called after
+			entering Goyo, the second after leaving it.
 
 ==============================================================================
-6. 映射                                                     *goyo-mappings*
+5. Autocommands	*goyo-autocmd*
 
-本插件不直接绑定任何全局按键，仅提供以下 <Plug> 映射：
+*GoyoEnter*
+GoyoEnter|User| event fired after entering Goyo.
 
-    <Plug>(goyo-off)        关闭 Goyo
-    <Plug>(goyo-resize)     按当前表达式重新排布
+*GoyoLeave*
+GoyoLeave|User| event fired after leaving Goyo.
 
-在 Goyo 激活期间，以下局部映射会临时生效（若该键未被占用）：
-    <C-w>R <C-w>H <C-w>J <C-w>K <C-w>L <C-w>| <C-w>_   禁用
-    <C-w>=            重新计算尺寸
-    <C-w>> <C-w><     调整宽度
-    <C-w>+ <C-w>-     调整高度
-退出时这些映射会被移除。
+Example: >vim
 
-==============================================================================
-7. 已知问题                                                   *goyo-issues*
-
-* 某些插件（vim-airline、lightline、vim-gitgutter、vim-signify、
-  vim-powerline）会被临时禁用，退出后恢复。
-* 若在 Goyo 中打开新的整屏窗口（如 :topleft split、:help），插件会尝试
-  把它收回到内容列内（见 |goyo-confine|）。
-
-                                                             *goyo-confine*
-ConfineWindows()
-    当 |BufWinEnter| 显示某内容窗口整块越出内容列时，关闭该窗口并从
-    master 窗口以普通 |:split| 重新打开其缓冲区，使其回到内容列。
-    每次只处理一个窗口，其余窗口由后续事件继续处理。
+autocmd User GoyoEnter call MyEnterGoyo()
+autocmd User GoyoLeave call MyLeaveGoyo()
+<
 
 ==============================================================================
-8. 开发与测试                                           *goyo-development*
+6. Mappings	*goyo-mappings*
 
-测试位于 test/ 目录，使用 Vim 内置断言：
+The plugin sets no global key mappings by itself.  It provides two <Plug>
+mappings that users may bind: >
 
-    make test
+<Plug>(goyo-off)leave Goyo
+<Plug>(goyo-resize)re-apply the current dimensions
+<
+Example: >vim
 
-或手动：
+nmap <Leader>z <Plug>(goyo-off)
+<
+While Goyo is active the following local mappings are installed, unless the
+key is already mapped; they are removed again on leaving:
 
-    vim -u NONE -i NONE -N -es --not-a-term \
-        --cmd 'set rtp^=.' -S test/test_goyo.vim
+<C-w>R <C-w>H <C-w>J <C-w>K <C-w>L <C-w>| <C-w>_disabled
+<C-w>=re-apply the current dimensions
+<C-w>> <C-w><adjust the width
+<C-w>+ <C-w>-adjust the height
 
-目录结构：
-    plugin/goyo.vim       插件加载层，定义 :Goyo
-    autoload/goyo.vim     实现（Vim9script）
-    doc/goyo.txt          本帮助文档
-    test/                 测试
-    ftplugin/             预留的文件类型配置
+==============================================================================
+7. Notes	*goyo-notes*
 
-许可证见仓库根目录的 LICENSE。
+*goyo-confine*
+Some commands, such as |:help|, |:tag| and |:copen|, open a window with
+`:topleft split` or `:botright split`.  Such a window spans the whole tab and
+would destroy the left and right margins.  When Goyo is active, any window
+that lies outside the content column is closed and its buffer is re-opened
+with an ordinary `:split` from the master window, so that it stays inside the
+content column.
 
-vim:tw=78:ts=8:ft=help:norl:
+The following plugins are temporarily disabled while Goyo is active and
+restored afterwards: vim-airline, lightline.vim, vim-powerline,
+vim-gitgutter and vim-signify.
+
+==============================================================================
+8. Translation	*goyo-translation*
+
+Messages can be translated using |gettext()|.  The package identifier is
+"goyo" and the catalogues live under |goyo-installation| as: >
+
+lang/<lang_id>/LC_MESSAGES/goyo.mo
+<
+The template is `lang/goyo.pot`.  See |package-translation| for how to create
+the `.po` and `.mo` files.
+
+==============================================================================
+9. Development	*goyo-development*
+
+The source is organised as a Vim package: >
+
+plugin/goyo.vimloads the plugin, defines :Goyo
+autoload/goyo.vimthe implementation (Vim9script)
+doc/goyo.txtthis help file
+lang/message catalogues
+test/test suite
+<
+Run the test suite with: >
+
+make test
+<
+Or directly: >sh
+
+sh test/run.sh vim
+<
+
+==============================================================================
+License: MIT, see the LICENSE file in the distribution.  goyo.vim is a fork of
+the original plugin by Junegunn Choi.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:

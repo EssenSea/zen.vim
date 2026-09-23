@@ -1,58 +1,73 @@
 vim9script
-# ===========================================================================
-# goyo.vim — 分心/免打扰写作模式（Distraction-free writing）
+
+# goyo.vim: Distraction-free writing mode (implementation)
 #
-# 本文件是 goyo.vim 的 Vim9script 实现，位于 autoload/goyo.vim：
-#   * plugin/goyo.vim 负责定义 :Goyo 命令与文档入口；
-#   * 本文件只导出 goyo#Execute()，由命令层调用。
+# Maintainer:   goyo.vim fork contributors
+# Last Change:  2026 Sep 23
+# License:      MIT (see LICENSE)
 #
-# 本实现相对上游（legacy script）在以下方面遵循 Vim 自身代码规范：
-#   * 使用 `def` + 类型标注；用 `<ScriptCmd>`/`:k` 替代 `<sid>`；
-#   * 用 `set`/`&opt` 赋值，而非 `execute 'let &opt = ...'`；
-#   * 用 `autocmd` 的 augroup 精确管理生命周期；
-#   * 会话状态集中在 `t:goyo_*`，退出时严格还原。
+# This file is the Vim9script implementation of the plugin.  plugin/goyo.vim
+# defines the user-facing command and imports this file as `goyo`; only the
+# exported items below are part of the public API.
 #
-# VIM9 说明 / Vim9 notes:
-#   * `def` 函数内的 `:set` 通过辅助函数执行，避免动态 `execute` 里的选项
-#     解析歧义；
-#   * 字符串回调统一改为 lambda，避免 legacy `map()`/`filter()` 的字符串形式。
-# ===========================================================================
+# Design notes:
+#   * Session state lives in tab-local variables (t:goyo_*) so that multiple
+#     tabs never interfere with each other.
+#   * Options and mappings touched while Goyo is active are saved on entry and
+#     restored exactly on exit.
+#   * Autocommands are confined to the `goyo` augroup and removed on exit.
+#
+# See doc/goyo.txt for user documentation.
 
 # ---------------------------------------------------------------------------
-# 会话状态（存放在 tab 局部变量中）
-#   t:goyo_dict     会话总状态字典（见 NewSession()）
-#   t:goyo_pads     四个填充窗口 {l,r,t,b} 的缓冲区号
-#   t:goyo_dim      几何尺寸 {width,height,xoff,yoff}
-# 其余兼容变量：t:goyo_master / t:goyo_winid / t:goyo_orig_winid 等。
+# Message translation.  The package identifier is "goyo" (see
+# :help package-translation).  The lang/ directory is optional; when it
+# is absent gettext() simply returns the untranslated string.
+# ---------------------------------------------------------------------------
+try
+  bindtextdomain('goyo',
+    fnamemodify(expand('<sfile>'), ':p:h') .. '/../lang/')
+catch
+  # bindtextdomain() is only available with the +multi_lang feature; ignore.
+endtry
+
+# ---------------------------------------------------------------------------
+# Session state (stored in tab-local variables).
+#   t:goyo_pads         buffer numbers of the four pads {l,r,t,b}
+#   t:goyo_dim          geometry {width,height,xoff,yoff}
+#   t:goyo_dim_expr     the expression the geometry was parsed from
+#   t:goyo_master       buffer number of the master window
+#   t:goyo_winid        window id of the master window
+#   t:goyo_orig_winid   window id of the window Goyo started from
+#   t:goyo_orig_tab     tab number Goyo started from
+#   t:goyo_revert       saved global options
+#   t:goyo_maps         temporary mappings to remove on exit
 # ---------------------------------------------------------------------------
 
-const PAD_BUF_OPTS: string = 'buftype=nofile bufhidden=wipe nomodifiable '
-  .. 'nobuflisted noswapfile nonumber nocursorline nocursorcolumn '
-  .. 'winfixwidth winfixheight nowrap'
-
 # ---------------------------------------------------------------------------
-# 小工具 / Helpers
+# Small helpers
 # ---------------------------------------------------------------------------
 
-# 将 val 限制在 [min, max] 区间。
+# Clamp val into the [minv, maxv] range.
 def Clamp(val: number, minv: number, maxv: number): number
   return min([max([val, minv]), maxv])
 enddef
 
-# 读取高亮组的属性。synIDattr() 在 Vim 下可能返回数字（-1），在 GVim 下返回
-# 字符串（'' 或 '#rrggbb'），语义依属性而定。
+# Read a highlight-group attribute.  synIDattr() returns a Number (-1) on
+# Vim and a String ('' or '#rrggbb') on GVim depending on the attribute.
 def Highlight(group: string, attr: string): any
   return synIDattr(synIDtrans(hlID(group)), attr)
 enddef
 
-# 设置高亮。gui 与 cterm 自动选择。
+# Set a highlight attribute, choosing gui or cterm automatically.
 def SetHighlight(group: string, attr: string, color: string)
   var use_gui = has('gui_running') || (has('termguicolors') && &termguicolors)
   execute printf('highlight %s %s%s=%s', group, use_gui ? 'gui' : 'cterm', attr, color)
 enddef
 
-# 通过 `:set` 还原选项，避免 Vim9 对 `:let &opt =` 的限制。
-# 字符串需要转义会终止/改变 `:set` 语义的字符。
+# Restore an option through :set, avoiding the Vim9 restriction on
+# `:let &opt = ...`.  Strings have characters escaped that would end or
+# change the meaning of the :set argument.
 def RestoreOption(name: string, value: any)
   if type(value) == v:t_bool
     execute 'set ' .. (value ? '' : 'no') .. name
@@ -63,8 +78,9 @@ def RestoreOption(name: string, value: any)
   endif
 enddef
 
-# 解析尺寸表达式：接受数字（相对行/列数）或 'N%'（相对百分比）。
-# 既接受字符串也接受数字，保持与上游一致的宽容度。
+# Parse a size expression: a Number (rows/columns), or a 'N%' String
+# (percentage).  Both Numbers and Strings are accepted for compatibility
+# with the upstream plugin.
 def Relsz(expr: any, limit: number): number
   var e = type(expr) == v:t_string ? expr : string(expr)
   if e !~ '%$'
@@ -73,12 +89,13 @@ def Relsz(expr: any, limit: number): number
   return limit * str2nr(e[: -2]) / 100
 enddef
 
-# 隐藏状态栏：既隐藏窗口 statusline，也清空自身。
+# Hide the status line, both for the window and for itself.
 def HideStatusline()
   setlocal statusline=\ 
 enddef
 
-# 隐藏行号/相对行号/colorcolumn。仅在用户未显式要求显示行号时。
+# Hide 'number', 'relativenumber' and 'colorcolumn' unless the user asked
+# to keep line numbers.
 def HideLinenr()
   if !get(g:, 'goyo_linenr', 0)
     setlocal nonumber
@@ -92,7 +109,8 @@ def HideLinenr()
 enddef
 
 # ---------------------------------------------------------------------------
-# 映射管理：记录我们覆盖的 <C-w> 键，退出时精确还原。
+# Mapping management: remember the <C-w> keys we override so they can be
+# restored exactly on exit.
 # ---------------------------------------------------------------------------
 def MapNop(): list<string>
   var keys = ['R', 'H', 'J', 'K', 'L', '|', '_']
@@ -107,7 +125,7 @@ def MapNop(): list<string>
 enddef
 
 def MapResize(): list<string>
-  # 命令表：键 -> ScriptCmd 调用。
+  # Command table: key -> <ScriptCmd> call.
   var commands: dict<string> = {
     '=': 'ResizeFromExpr()',
     '>': 'ResizeWidth(v:count1)',
@@ -133,15 +151,16 @@ def UnmapWindowKeys(keys: list<string>)
 enddef
 
 # ---------------------------------------------------------------------------
-# 填充窗口（pad）
+# Padding windows (pads)
 # ---------------------------------------------------------------------------
 
-# 在当前窗口上创建一个填充缓冲区，并返回其缓冲区号。
-# 调用后光标会回到进入前的窗口（winnr('#')）。
+# Create a padding buffer in the current window and return its buffer
+# number.  On return the cursor is back in the previously active window
+# (winnr('#')).
 def InitPad(command: string): number
   execute command
 
-  # 一次性设置所有本地选项，减少 :set 调用次数。
+  # Set all window-local options in one go.
   setlocal buftype=nofile bufhidden=wipe nomodifiable nobuflisted
     \ noswapfile nonumber nocursorline nocursorcolumn winfixwidth
     \ winfixheight nowrap statusline=\ 
@@ -159,7 +178,8 @@ def InitPad(command: string): number
   return bufnr
 enddef
 
-# 调整指定 pad 缓冲区所在窗口的尺寸，并绑定「越界即退出」的自动命令。
+# Resize the window showing a pad buffer and install the autocommands that
+# make the cursor bounce back when it reaches the padding.
 def SetupPad(bufnr: number, vert: bool, size: number, repel: string)
   var win = bufwinnr(bufnr)
   if win <= 0
@@ -174,7 +194,7 @@ def SetupPad(bufnr: number, vert: bool, size: number, repel: string)
     execute 'autocmd WinLeave <buffer> HideStatusline()'
   augroup END
 
-  # 清空缓冲区内容；必要时填充空行以隐藏滚动条。
+  # Clear the buffer; append blank lines to hide scroll bars if needed.
   setlocal modifiable
   deletebufline(bufnr(''), 1, '$')
   var diff = winheight(0) - line('$') - (has('gui_running') ? 2 : 0)
@@ -192,7 +212,7 @@ def SetupPad(bufnr: number, vert: bool, size: number, repel: string)
   endif
 enddef
 
-# 光标越界时把焦点弹回内容窗口。
+# Bounce the cursor back into the content window.
 def Blank(repel: string)
   var pads = get(t:, 'goyo_pads', {})
   if bufwinnr(pads.r) <= bufwinnr(pads.l) + 1
@@ -202,7 +222,7 @@ def Blank(repel: string)
   execute 'noautocmd wincmd ' .. repel
 enddef
 
-# 在 pad 窗口内绘制 ASCII 装饰。
+# Draw ASCII decoration in a pad window.
 def Decorate()
   var save_scroll = getcurpos()[1]
   var win_width = winwidth(0)
@@ -212,7 +232,7 @@ def Decorate()
   endif
 
   var elements: list<string> = get(g:, 'goyo_decoration_elements', ['~'])
-  # 过滤空元素，避免网格宽度为 0 导致除零。
+  # Drop empty elements so the grid width cannot become zero.
   elements = filter(map(copy(elements),
     (_: number, e: string): string => printf('%1s', e)),
     (_: number, e: string): bool => !empty(e))
@@ -224,7 +244,7 @@ def Decorate()
   var blank = repeat(' ', grid_width)
   var density = get(g:, 'goyo_decoration_density', 0.0)
 
-  # 一次性构造所有行，减少 append() 调用。
+  # Build all lines at once to avoid repeated append() calls.
   var lines: list<string> = []
   for _ in range(win_height)
     var line = ''
@@ -252,10 +272,11 @@ def Decorate()
 enddef
 
 # ---------------------------------------------------------------------------
-# 尺寸计算
+# Geometry
 # ---------------------------------------------------------------------------
 
-# 把 'N' / 'N%' / '+N' / '-N' 形式的表达式解析成会话尺寸字典。
+# Parse an expression such as 'N', 'N%', '+N' or '-N' into a geometry
+# dictionary.
 def ParseArg(arg: string): dict<number>
   var height: number
   var yoff: number
@@ -279,9 +300,10 @@ def ParseArg(arg: string): dict<number>
     return dim
   endif
 
-  # 语法：{width}[{+/-xoff}]x{height}[{+/-yoff}]
-  # 宽度/高度各自可为绝对值、百分比或（当省略时为）默认值。
-  # 捕获组：1=width, 2=xoff, 3=height, 4=yoff
+  # Syntax: {width}[{+/-xoff}]x{height}[{+/-yoff}]
+  # Each of width/height may be an absolute value, a percentage, or be
+  # omitted to use the default.  Capture groups: 1=width 2=xoff 3=height
+  # 4=yoff.
   var parts = matchlist(arg,
     '^\s*'
     .. '\([+-]\?[0-9]\+%\?\)\?\([+-][0-9]\+%\?\)\?'
@@ -291,7 +313,7 @@ def ParseArg(arg: string): dict<number>
     .. '\s*$')
   if empty(parts)
     echohl WarningMsg
-    echomsg 'goyo: invalid dimension expression: ' .. arg
+    echomsg gettext('goyo: invalid dimension expression: ') .. arg
     echohl None
     return {}
   endif
@@ -303,10 +325,10 @@ def ParseArg(arg: string): dict<number>
 enddef
 
 # ---------------------------------------------------------------------------
-# 布局
+# Layout
 # ---------------------------------------------------------------------------
 
-# 调整四个 pad 的尺寸，使内容窗口获得请求的几何尺寸。
+# Resize the four pads so the content window gets the requested geometry.
 def ResizePads()
   augroup goyo_pad
     autocmd!
@@ -331,7 +353,7 @@ def ResizePads()
   SetupPad(t:goyo_pads.r, true, hmargin - xoff, 'h')
 enddef
 
-# 按表达式重新计算尺寸（<C-w>=）。
+# Re-parse the expression and re-apply the geometry (<C-w>=).
 def ResizeFromExpr()
   t:goyo_dim = ParseArg(t:goyo_dim_expr)
   ResizePads()
@@ -348,10 +370,10 @@ def ResizeHeight(delta: number)
 enddef
 
 # ---------------------------------------------------------------------------
-# 颜色
+# Colours
 # ---------------------------------------------------------------------------
 
-# 让非内容元素融入背景色，营造「无干扰」效果。
+# Blend interface elements into the background for a distraction-free look.
 def Tranquilize()
   var bg = Highlight('Normal', 'bg#')
   for grp in ['NonText', 'FoldColumn', 'ColorColumn', 'VertSplit',
@@ -368,10 +390,10 @@ def Tranquilize()
 enddef
 
 # ---------------------------------------------------------------------------
-# 内容窗口约束（keep :help / :copen / tag jumps inside the content column）
+# Confining content windows (:help / :copen / tag jumps stay in the column)
 # ---------------------------------------------------------------------------
 
-# 返回内容列的水平边界 [left, right]。
+# Return the horizontal bounds of the content column as [left, right].
 def ContentBounds(): list<number>
   var lpad = bufwinnr(t:goyo_pads.l)
   var rpad = bufwinnr(t:goyo_pads.r)
@@ -380,7 +402,8 @@ def ContentBounds(): list<number>
   return [left, right]
 enddef
 
-# 定位 master 窗口号；优先用窗口 ID（缓冲区可能已变），失败则退回缓冲号。
+# Locate the master window: prefer its window id (its buffer may have
+# changed), fall back to its buffer number.
 def MasterWin(): number
   var win = win_id2win(t:goyo_winid)
   if win > 0
@@ -389,9 +412,11 @@ def MasterWin(): number
   return bufwinnr(t:goyo_master)
 enddef
 
-# 若某个内容窗口整块越出内容列（如 :topleft split），把它收回到 master
-# 所在列组。每次只处理一个窗口，由 BufWinEnter 再次触发以处理其余窗口，
-# 避免在遍历中改变窗口布局导致索引失效。
+# When a content window lies outside the content column (for example one
+# opened with :topleft split), close it and re-open its buffer with an
+# ordinary :split from the master window.  Only one window is handled per
+# call; BufWinEnter fires again for the rest, which avoids invalidating the
+# window iteration.
 def ConfineWindows()
   if !exists('#goyo') || !exists('t:goyo_pads')
     return
@@ -417,7 +442,7 @@ def ConfineWindows()
       continue
     endif
 
-    # 越界：关闭并按普通 split 从 master 重新打开，回到内容列内。
+    # Outside the column: close and re-open from the master as a split.
     var v = winsaveview()
     var target = buf
     execute ':' .. master_win .. 'wincmd w'
@@ -429,10 +454,11 @@ def ConfineWindows()
 enddef
 
 # ---------------------------------------------------------------------------
-# 打开 / 关闭
+# Entering and leaving
 # ---------------------------------------------------------------------------
 
-# 记录可能被 Goyo 干扰的插件状态，退出时恢复。
+# Remember the state of plugins that Goyo interferes with, to restore it
+# on exit.
 def DisablePlugins(): dict<bool>
   var state: dict<bool> = {}
 
@@ -468,7 +494,7 @@ def EnablePlugins(state: dict<bool>)
 
   if state.airline && !exists('#airline')
     silent! execute 'AirlineToggle'
-    # Airline 需要刷新两次才能避免残影（上游已知问题）。
+    # Airline needs two refreshes to avoid display artifacts.
     silent! execute 'AirlineRefresh'
     silent! execute 'AirlineRefresh'
   endif
@@ -487,7 +513,7 @@ def EnablePlugins(state: dict<bool>)
   endif
 enddef
 
-# 收集进入前需要保存并恢复的全局选项。
+# Collect the global options that must be saved and restored.
 def SaveOptions(): dict<any>
   var opts: dict<any> = {
     'laststatus':    &laststatus,
@@ -508,22 +534,23 @@ def SaveOptions(): dict<any>
 enddef
 
 def RestoreOptions(revert: dict<any>)
-  # winwidth 必须 >= winminwidth，winheight 必须 >= winminheight。
-  # 因此还原顺序为：先把当前值放大到足以容纳目标 min，再设 min，最后设目标值，
-  # 否则会出现 "E592/E591: cannot be smaller than ..."。
+  # winwidth must be >= winminwidth and winheight must be >= winminheight.
+  # The order therefore is: enlarge the current values enough to hold the
+  # target minimum, set the minimum, then set the target value.  Otherwise
+  # Vim raises "E592/E591: cannot be smaller than ...".
   var wmw = remove(revert, 'winminwidth')
   var ww  = remove(revert, 'winwidth')
   var wmh = remove(revert, 'winminheight')
   var wh  = remove(revert, 'winheight')
 
-  # 1) 先把当前值放大到足以容纳目标下限。
+  # 1) Enlarge the current values enough to hold the target minimum.
   &winwidth = Clamp(max([wmw, ww, &winwidth]), 1, &columns)
   &winheight = Clamp(max([wmh, wh, &winheight]), 1, &lines)
-  # 2) 设置下限；受当前 winwidth/winheight 约束，避免窗口数不足时
-  #    被 Vim 自动 clamp 后触发 E591/E592。
+  # 2) Set the minimum, bounded by the current winwidth/winheight so that
+  #    Vim clamping on a small layout cannot raise E591/E592.
   &winminwidth = Clamp(wmw, 1, &winwidth)
   &winminheight = Clamp(wmh, 1, &winheight)
-  # 3) 设置目标值，并夹在 [min, 上限] 之间。
+  # 3) Set the target value, clamped to [min, upper bound].
   &winwidth = Clamp(max([wmw, ww]), &winminwidth, &columns)
   &winheight = Clamp(max([wmh, wh]), &winminheight, &lines)
 
@@ -532,9 +559,10 @@ def RestoreOptions(revert: dict<any>)
   endfor
 enddef
 
-# 打开 Goyo。
-# BufWinEnter / WinEnter 时刷新本会话窗口的界面并约束越界窗口。
-# 只在当前 tab 属于 Goyo 会话时生效，避免影响其它 tab。
+# Enter Goyo.
+# Refresh the session windows on BufWinEnter/WinEnter and confine
+# out-of-column windows.  Only acts on the Goyo tab so other tabs are
+# unaffected.
 def OnBufWinEnter()
   if !exists('t:goyo_pads')
     return
@@ -560,7 +588,8 @@ def GoyoOn(dim_arg: string)
   var orig_winid = win_getid()
   var revert = SaveOptions()
 
-  # tab split：复制当前 tab，以便在独立 tab 中改造布局；退出时关闭它。
+  # tab split: keep the original tab intact and build the layout in a copy
+  # that is closed again on exit.
   tab split
 
   t:goyo_orig_winid = orig_winid
@@ -577,9 +606,9 @@ def GoyoOn(dim_arg: string)
 
   HideLinenr()
 
-  # 全局选项：让所有窗口尽可能小，以便 pad 精确控制尺寸。
-  # 顺序：必须先降低 *_minheight/*_minwidth，再把 winheight/winwidth 设为 1，
-  # 否则原 min 较大且窗口数不足时，Vim 会拒绝或自动 clamp 并报 E591/E592。
+  # Global options: make all windows as small as possible so the pads can
+  # set the geometry precisely.  Lower the minimum sizes before setting the
+  # sizes to 1, or Vim raises E591/E592 on a small layout.
   set winminheight=1 winminwidth=1
   set winheight=1 winwidth=1
   set laststatus=0 showtabline=0 noruler
@@ -604,7 +633,7 @@ def GoyoOn(dim_arg: string)
     autocmd TabLeave    * ++nested call GoyoOff()
     autocmd VimResized  * call ResizePads()
     autocmd ColorScheme * call Tranquilize()
-    # 仅在本 tab 的窗口上生效；ConfineWindows() 负责把越界窗口收回内容列。
+    # Only act on this tab; ConfineWindows() pulls stray windows back.
     autocmd BufWinEnter * call OnBufWinEnter()
     autocmd WinEnter    * call OnWinEnter()
     if has('nvim')
@@ -619,7 +648,8 @@ def GoyoOn(dim_arg: string)
   doautocmd <nomodeline> User GoyoEnter
 enddef
 
-# 关闭 Goyo，并把 Goyo tab 的内容窗口布局恢复到原 tab。
+# Leave Goyo and transplant the content-window layout back to the
+# original tab.
 def GoyoOff()
   if !exists('#goyo') || !exists('t:goyo_revert')
     return
@@ -641,7 +671,7 @@ def GoyoOff()
   var orig_winid = get(t:, 'goyo_orig_winid', 0)
   var pads = get(t:, 'goyo_pads', {})
 
-  # 采集所有内容窗口的缓冲区/光标/屏幕位置。
+  # Collect buffer, cursor and screen position of every content window.
   var content: list<dict<any>> = []
   for win in range(1, winnr('$'))
     var buf = winbufnr(win)
@@ -663,8 +693,9 @@ def GoyoOff()
 
   var goyo_tab = tabpagenr()
 
-  # 回到原 tab / 原窗口，并把布局搬过去。
-  # 优先按原窗口 ID 定位其所在 tab（tab 编号可能已变）；否则回退到记录值。
+  # Go back to the original tab/window and rebuild the layout there.
+  # Prefer the original window id (tab numbers may have changed), fall
+  # back to the recorded tab number.
   var orig_tab = get(t:, 'goyo_orig_tab', 0)
   if orig_winid > 0 && win_id2win(orig_winid) > 0
     win_gotoid(orig_winid)
@@ -699,7 +730,7 @@ def GoyoOff()
     endfor
   endif
 
-  # 关闭 Goyo tab。
+  # Close the Goyo tab.
   if goyo_tab != tabpagenr() && goyo_tab <= tabpagenr('$')
     execute ':' .. goyo_tab .. 'tabclose!'
   endif
@@ -715,14 +746,36 @@ def GoyoOff()
   doautocmd <nomodeline> User GoyoLeave
 enddef
 
-# 判断会话是否激活。
+# ---------------------------------------------------------------------------
+# Public API (imported by plugin/goyo.vim as `goyo`)
+# ---------------------------------------------------------------------------
+
+# Whether a Goyo session is currently active in this tab.
 export def IsActive(): bool
   return exists('#goyo')
 enddef
 
-# 公开入口，由 plugin/goyo.vim 的 :Goyo 命令调用。
-#   bang 为真：强制关闭。
-#   dim 非空：以给定尺寸/表达式进入或调整尺寸。
+# Access the pad buffers of the current session ({l,r,t,b} -> bufnr).
+# Returns an empty dict when Goyo is not active.
+export def Pads(): dict<number>
+  return get(t:, 'goyo_pads', {})
+enddef
+
+# Close the current Goyo session.  Safe to call when it is not active.
+export def Close()
+  GoyoOff()
+enddef
+
+# Re-apply the current dimensions.
+export def Resize()
+  if IsActive()
+    ResizePads()
+  endif
+enddef
+
+# Main entry point, called by the :Goyo command in plugin/goyo.vim.
+#   bang: when true, force leaving regardless of state.
+#   dim:  optional dimension expression (see doc/goyo.txt).
 export def Execute(bang: bool, dim: string)
   if bang
     GoyoOff()
@@ -731,6 +784,8 @@ export def Execute(bang: bool, dim: string)
   if !IsActive()
     GoyoOn(dim)
   elseif !empty(dim)
+    # Changing dimensions on a live session: rebuild only when the layout is
+    # too small for the pads, otherwise just resize.
     if winnr('$') < 5
       GoyoOff()
       GoyoOn(dim)
@@ -747,11 +802,8 @@ export def Execute(bang: bool, dim: string)
   endif
 enddef
 
-# ---------------------------------------------------------------------------
-# 命令补全
-# ---------------------------------------------------------------------------
-
-# :Goyo 的尺寸参数补全。
+# Custom completion for :Goyo ({ArgLead}, {CmdLine}, {CursorPos}; see
+# :help command-completion-customlist).
 export def Complete(arglead: string, cmdline: string, _cursorpos: number): list<string>
   if cmdline =~ '\s\S*$'
     return ['80', '100', '120', '50%', '60%', '80x24', '50%x70%', '120x30']
@@ -759,13 +811,4 @@ export def Complete(arglead: string, cmdline: string, _cursorpos: number): list<
   return []
 enddef
 
-# 供 Blank()/其他函数访问当前 tab 的 pads（缺失时回退到空 dict）。
-export def GoyoPads(): dict<number>
-  return get(t:, 'goyo_pads', {})
-enddef
-
-# ---------------------------------------------------------------------------
-# <Plug> 映射（供用户映射，不直接绑键）。
-# ---------------------------------------------------------------------------
-nnoremap <silent> <Plug>(goyo-off) <ScriptCmd>GoyoOff()<CR>
-nnoremap <silent> <Plug>(goyo-resize) <ScriptCmd>ResizePads()<CR>
+# vim: ts=8 sts=2 sw=2 et:

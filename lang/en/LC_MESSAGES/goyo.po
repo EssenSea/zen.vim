@@ -1,0 +1,19 @@
+# goyo.vim message catalogue template.
+# Copyright (C) 2026 goyo.vim fork contributors
+# This file is distributed under the same license as the goyo.vim package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: goyo.vim 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-23 12:00+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: English\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: autoload/goyo.vim
+msgid "goyo: invalid dimension expression: "
+msgstr ""

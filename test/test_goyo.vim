@@ -1,23 +1,24 @@
 vim9script
 # ============================================================================
-# goyo.vim 单元/集成测试
+# goyo.vim unit / integration tests
 #
-# 用法（见 test/run.sh）：
+# Usage (see test/run.sh):
 #   vim -u NONE -i NONE -N -es --not-a-term \
 #       --cmd 'set rtp^=<plugin-root>' -S test/test_goyo.vim
 #
-# 测试使用 Vim 内置的单元断言（assert_equal / assert_true / ...），
-# 通过 `assert_...()` 抛出异常来报告失败；运行器将统计失败数并设置退出码。
+# Tests use Vim's built-in assertions (assert_equal, assert_true, ...).
+# A failing assertion throws; the runner counts failures and uses that
+# count as its exit status.
 # ============================================================================
 
 # ---------------------------------------------------------------------------
-# 最小测试框架（零依赖，仅用 Vim 内置 assert_*）
+# Minimal test framework (no dependencies, only Vim's assert_*())
 # ---------------------------------------------------------------------------
 var passed = 0
 var failed = 0
 var report_lines: list<string> = []
 
-# 把结果同时写入文件（供测试运行器收集）与消息区（交互模式）。
+# Results are collected in a list and written to $GOYO_TEST_OUT.
 def Report(line: string)
   report_lines->add(line)
 enddef
@@ -43,7 +44,7 @@ def Test(name: string, Fn: func)
 enddef
 
 # ---------------------------------------------------------------------------
-# 测试夹具
+# Fixtures
 # ---------------------------------------------------------------------------
 const RTP_SAVE = &runtimepath
 const COLUMNS_SAVE = &columns
@@ -53,7 +54,7 @@ def Setup()
   set nocompatible
   set nomore noswapfile nobackup nowritebackup
   set columns=80 lines=24
-  # 保证 Goyo 已加载。
+  # Make sure the plugin is loaded.
   if !exists(':Goyo')
     runtime plugin/goyo.vim
   endif
@@ -68,19 +69,19 @@ def Teardown()
   endif
 enddef
 
-# 辅助：ConfineWindows 是脚本局部函数，测试无法直接调用。
-# 通过重新触发 BufWinEnter 间接驱动它。
+# Helper: ConfineWindows() is script-local and cannot be called from the
+# tests, so drive it by re-triggering BufWinEnter.
 def ConfineSettle()
   doautocmd BufWinEnter
 enddef
 
 # ---------------------------------------------------------------------------
-# 运行前准备
+# Setup
 # ---------------------------------------------------------------------------
 Setup()
 
 # ---------------------------------------------------------------------------
-# 1. 插件加载与命令
+# 1. Plugin loading and commands
 # ---------------------------------------------------------------------------
 Test('plugin defines :Goyo command', () => {
   assert_equal(2, exists(':Goyo'))
@@ -95,7 +96,7 @@ Test('goyo#IsActive is exported', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 2. 尺寸表达式解析（通过公开入口进入后检查 t:goyo_dim）
+# 2. Geometry parsing (enter through the public API, then inspect t:goyo_dim)
 # ---------------------------------------------------------------------------
 Test('default dimensions use g:goyo_width (80)', () => {
   g:goyo_width = 80
@@ -130,7 +131,7 @@ Test('invalid expression is rejected (not active)', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 3. 会话激活 / 退出
+# 3. Session activation / deactivation
 # ---------------------------------------------------------------------------
 Test('activating creates 5 windows (master + 4 pads)', () => {
   goyo#Execute(false, '80x20')
@@ -156,7 +157,7 @@ Test('toggle: :Goyo then :Goyo leaves', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 4. 选项保存与恢复
+# 4. Saving and restoring options
 # ---------------------------------------------------------------------------
 Test('global options are restored on leave', () => {
   set laststatus=2
@@ -176,8 +177,8 @@ Test('global options are restored on leave', () => {
 })
 
 Test('winwidth/winheight restored in correct order', () => {
-  # 注意：在屏幕很小的 CI 环境里，全局 winheight 会被 Vim 自动限制，
-  # 因此这里只验证插件的保存/还原逻辑，不假设能设置任意大值。
+  # On a small CI screen Vim clamps the global winheight, so only verify
+  # the save/restore logic rather than assuming arbitrary values.
   const save_ww = &winwidth
   const save_wmw = &winminwidth
   const save_wh = &winheight
@@ -198,7 +199,7 @@ Test('winwidth/winheight restored in correct order', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 5. 缓冲区保留
+# 5. Buffer preservation
 # ---------------------------------------------------------------------------
 Test(':edit another file during Goyo survives exit', () => {
   var tmp = tempname()
@@ -215,12 +216,12 @@ Test(':edit another file during Goyo survives exit', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 6. 内容窗口约束（ConfineWindows）
+# 6. Confining content windows (ConfineWindows)
 # ---------------------------------------------------------------------------
 Test('help window stays within content column', () => {
   goyo#Execute(false, '80x20')
   help
-  # 找出 help 窗口
+  # Locate the help window.
   var helpwin = 0
   for i in range(1, winnr('$'))
     if bufname(winbufnr(i)) =~ 'help.txt\|doc/'
@@ -228,13 +229,13 @@ Test('help window stays within content column', () => {
     endif
   endfor
   assert_true(helpwin > 0)
-  # help 窗口不应占据整屏宽度（应 <= 内容列宽度）
+  # The help window must not span the whole screen.
   assert_true(winwidth(helpwin) < &columns)
   goyo#Execute(true, '')
 })
 
 # ---------------------------------------------------------------------------
-# 7. 健壮性：重复操作、非法输入
+# 7. Robustness: repeated calls and invalid input
 # ---------------------------------------------------------------------------
 Test('idempotent force-off when not active', () => {
   goyo#Execute(true, '')
@@ -252,7 +253,7 @@ Test('resizing an active session', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 8. 尺寸边界与解析健壮性
+# 8. Geometry bounds and parsing robustness
 # ---------------------------------------------------------------------------
 Test('oversized dimensions are clamped to screen', () => {
   goyo#Execute(false, '9999x9999')
@@ -288,7 +289,7 @@ Test('empty dimension uses configured defaults', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 9. 回调与用户事件
+# 9. Callbacks and user events
 # ---------------------------------------------------------------------------
 Test('g:goyo_callbacks fire on enter and leave', () => {
   var calls: list<string> = []
@@ -322,13 +323,13 @@ Test('User GoyoEnter/GoyoLeave autocmds fire', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 10. 行号选项
+# 10. Line-number option
 # ---------------------------------------------------------------------------
 Test('g:goyo_linenr=1 keeps numbers', () => {
   set number
   g:goyo_linenr = 1
   goyo#Execute(false, '80x20')
-  # 内容窗口应保留 number
+  # The content window keeps 'number'.
   execute ':' .. win_id2win(t:goyo_winid) .. 'wincmd w'
   assert_true(&number)
   goyo#Execute(true, '')
@@ -347,7 +348,7 @@ Test('default hides numbers in content window', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 11. 临时映射
+# 11. Temporary mappings
 # ---------------------------------------------------------------------------
 Test('temporary <C-w> mappings are installed and removed', () => {
   var before = maparg('<C-w>', 'n')
@@ -361,7 +362,7 @@ Test('temporary <C-w> mappings are installed and removed', () => {
 })
 
 # ---------------------------------------------------------------------------
-# 12. 窗口约束：普通 split 保留，整屏窗口回收
+# 12. Window confinement: normal splits kept, full-width windows pulled back
 # ---------------------------------------------------------------------------
 Test('normal vsplit inside content column is preserved', () => {
   var tmp = tempname()
@@ -371,10 +372,10 @@ Test('normal vsplit inside content column is preserved', () => {
   var tmp2 = tempname()
   writefile(['b'], tmp2)
   execute 'vsplit ' .. tmp2
-  # master + 新 split + 4 pads = 6
+  # master + new split + 4 pads = 6
   assert_equal(6, winnr('$'))
   goyo#Execute(true, '')
-  # 退出后保留两个内容窗口
+  # Both content windows survive leaving Goyo.
   assert_equal(2, winnr('$'))
   silent! execute 'bwipeout! ' .. tmp
   silent! execute 'bwipeout! ' .. tmp2
@@ -382,10 +383,10 @@ Test('normal vsplit inside content column is preserved', () => {
 
 Test('ConfineWindows brings full-width window back into content column', () => {
   goyo#Execute(false, '80x20')
-  # 直接触发一个整屏窗口：topleft new
+  # Directly open a full-width window.
   topleft new
-  # 此时新窗口横跨整个 tab；ConfineWindows() 应由 autocmd 触发并收回。
-  # 给自动命令一次执行机会。
+  # ConfineWindows() should be driven by the autocommand; give it a chance
+  # to run.
   call ConfineSettle()
   var outside = 0
   for i in range(1, winnr('$'))
@@ -393,20 +394,94 @@ Test('ConfineWindows brings full-width window back into content column', () => {
       outside += 1
     endif
   endfor
-  # 除上下 pad 外，不应有占满整屏的内容窗口。
+  # Apart from the top/bottom pads, no window should span the screen.
   assert_true(outside <= 2)
   goyo#Execute(true, '')
 })
 
 # ---------------------------------------------------------------------------
-# 运行与报告
+# 13. Plugin layer and namespace API (import autoload)
+# ---------------------------------------------------------------------------
+Test('plugin defines <Plug> mappings', () => {
+  assert_false(empty(maparg('<Plug>(goyo-off)', 'n')))
+  assert_false(empty(maparg('<Plug>(goyo-resize)', 'n')))
+})
+
+Test('plugin does not clobber user <C-w> mappings by default', () => {
+  # The plugin must not set <C-w> mappings at load time.
+  goyo#Execute(true, '')
+  # Just check that nothing is left behind.
+  assert_true(empty(maparg('<C-w>R', 'n')) || !goyo#IsActive())
+})
+
+Test('goyo#IsActive / goyo#Pads compatibility names exist', () => {
+  assert_true(exists('*goyo#IsActive') > 0)
+  assert_true(exists('*goyo#Pads') > 0)
+  assert_true(exists('*goyo#Close') > 0)
+  assert_true(exists('*goyo#Resize') > 0)
+  assert_true(exists('*goyo#Complete') > 0)
+})
+
+Test('goyo#Pads returns empty when inactive', () => {
+  goyo#Execute(true, '')
+  assert_equal({}, goyo#Pads())
+})
+
+Test('goyo#Pads returns four pads when active', () => {
+  goyo#Execute(false, '80x20')
+  var pads = goyo#Pads()
+  assert_equal(4, len(pads))
+  for k in ['l', 'r', 't', 'b']
+    assert_true(has_key(pads, k))
+    assert_true(bufexists(pads[k]))
+  endfor
+  goyo#Execute(true, '')
+})
+
+Test('goyo#Close closes an active session', () => {
+  goyo#Execute(false, '80x20')
+  assert_true(goyo#IsActive())
+  goyo#Close()
+  assert_false(goyo#IsActive())
+})
+
+Test('goyo#Resize is a no-op when inactive', () => {
+  goyo#Execute(true, '')
+  goyo#Resize()
+  assert_false(goyo#IsActive())
+})
+
+Test('goyo#Complete returns candidates and is well formed', () => {
+  var items = goyo#Complete('8', 'Goyo 8', 6)
+  assert_true(type(items) == v:t_list)
+  assert_true(len(items) > 0)
+  assert_true(index(items, '80') >= 0)
+})
+
+Test('<Plug>(goyo-off) leaves Goyo', () => {
+  goyo#Execute(false, '80x20')
+  assert_true(goyo#IsActive())
+  execute "normal \<Plug>(goyo-off)"
+  assert_false(goyo#IsActive())
+})
+
+Test('<Plug>(goyo-resize) re-applies dimensions', () => {
+  goyo#Execute(false, '80x20')
+  var before = get(t:, 'goyo_dim', {})
+  execute "normal \<Plug>(goyo-resize)"
+  assert_equal(before, get(t:, 'goyo_dim', {}))
+  goyo#Execute(true, '')
+})
+
+# ---------------------------------------------------------------------------
+# Run and report
 # ---------------------------------------------------------------------------
 
 Teardown()
 
 Report(printf('goyo tests: %d passed, %d failed', passed, failed))
 
-# 退出码：失败数即退出码，方便 CI。
+# Exit status: number of failures, convenient for CI.
 FlushReport()
 if failed > 0
   execute 'cquit ' .. failed

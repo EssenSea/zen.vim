@@ -1,67 +1,87 @@
 # goyo.vim
 
-无干扰写作模式 / Distraction-free writing for Vim。
+Distraction-free writing mode for Vim — 无干扰写作模式。
 
-本仓库是 [goyo.vim](https://github.com/junegunn/goyo.vim) 的 fork，将其核心实现
-**用 Vim9script 重写**，并按 Vim 官方插件规范整理了目录结构、帮助文档与测试。
+This repository is a fork of [goyo.vim](https://github.com/junegunn/goyo.vim)
+that rewrites the implementation in **Vim9script** and organises the project
+as a standard Vim package, following the conventions used by Vim's bundled
+plugins (`:help package-create`).
 
-## 特性
+## Features
 
-* 内容窗口居中，四周由自动调整的填充窗口撑开；
-* 隐藏状态栏、行号、colorcolumn 等界面元素；
-* 支持以列数/百分比/偏移量指定内容尺寸；
-* 进入 Goyo 后打开的窗口（`:help`、tag 跳转、`:copen` 等）会被约束在内容列内；
-* 离开时保留 master 窗口实际显示的缓冲区；
-* 严格保存/恢复全局选项与临时映射，退出后无残留。
+- The content window is centred; the surrounding space is filled with
+  automatically sized padding windows.
+- The status line, line numbers and color column are hidden while active.
+- Content size can be given as columns, percentages or offsets.
+- Windows opened by `:help`, `:tag`, `:copen`, … are kept inside the content
+  column instead of destroying the margins.
+- The buffer shown in the master window is preserved on exit.
+- All touched options and mappings are restored exactly on exit.
+- User messages are translatable through `gettext()`
+  (`:help package-translation`).
 
-## 环境要求
+## Requirements
 
-* Vim **9.1.0000+**，且编译包含 `+vim9script`；
-* 也尝试兼容 Neovim（`--headless` 测试）。
+- Vim **9.1.0000+** built with `+vim9script`.
+- Optional translations need `+multi_lang`.
 
-## 安装
+## Installation
 
-放入 `runtimepath` 即可（任意插件管理器皆可）：
-
-```vim
-set runtimepath+=/path/to/zen.vim
-```
-
-插件通过 `plugin/goyo.vim` 自动定义 `:Goyo` 命令。
-
-## 使用
+Add the repository to `'runtimepath'`, or install it as a package:
 
 ```vim
-:Goyo            " 进入；再次执行退出
-:Goyo 80x20      " 内容 80 列 x 20 行
-:Goyo 50%x70%    " 百分比
-:Goyo!           " 强制退出
+" option A: plain runtimepath
+set runtimepath+=/path/to/goyo.vim
+
+" option B: as a package (recommended for :packadd)
+"   ~/.vim/pack/goyo/start/goyo/  <- clone here
+packadd goyo
 ```
 
-完整的选项、回调、映射与事件说明见 `:help goyo`。
+`plugin/goyo.vim` defines the `:Goyo` command at startup.
 
-## 目录结构
+## Usage
 
-```
-plugin/goyo.vim     插件加载层：定义 :Goyo
-autoload/goyo.vim   实现（Vim9script）
-doc/goyo.txt        帮助文档
-doc/tags            帮助标签（由 :helptags 生成）
-test/               测试
-test/run.sh         测试运行器
-Makefile            常用任务
+```vim
+:Goyo            " enter; run again to leave
+:Goyo 80x20      " 80 columns by 20 lines
+:Goyo 50%x70%    " percentages
+:Goyo!           " force leave
 ```
 
-## 开发与测试
+See `:help goyo` for the full manual.
+
+## Layout
+
+```
+plugin/goyo.vim     loads the plugin, defines :Goyo and <Plug> mappings
+autoload/goyo.vim   the implementation (Vim9script, exported API)
+doc/goyo.txt        help file
+doc/tags            help tags (regenerate with :helptags doc)
+lang/               gettext catalogues (goyo.pot, <lang>/LC_MESSAGES/goyo.mo)
+test/test_goyo.vim  test suite
+test/run.sh         test runner
+Makefile            common tasks
+```
+
+## Development
 
 ```sh
-make test        # vim
-make test-nvim   # nvim
-make tags        # 重新生成 doc/tags
+make test        # run the suite with Vim
+make test-nvim   # run with Neovim (skipped if it lacks Vim9script)
+make tags        # regenerate doc/tags
+make lint        # load the plugin to catch compile errors
 ```
 
-测试基于 Vim 内置的 `assert_*` 断言，零外部依赖，失败数即退出码，便于 CI。
+The tests use Vim's built-in `assert_*()` functions and report the number of
+failures as the exit status.  See `CONTRIBUTING.md`.
 
-## 许可
+## Translation
 
-MIT，见 [LICENSE](LICENSE)。上游版权归 Junegunn Choi。
+The catalogue template is `lang/goyo.pot`.  To add a language, create
+`lang/<lang_id>/LC_MESSAGES/goyo.po`, translate it and compile it with
+`msgfmt -o goyo.mo goyo.po`.  See `:help package-translation`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).  Upstream copyright belongs to Junegunn Choi.
