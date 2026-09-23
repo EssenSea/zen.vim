@@ -118,6 +118,16 @@ Saving and restoring ~
 	separator row is hidden by the combination of all three, not by
 	'laststatus' alone.
 
+	Sourcing a vimrc while Zen is active can set 'laststatus' back to
+	a nonzero value (some configs force a status line everywhere), which
+	makes every window draw one again.  Zen only assigns it on entry, so
+	it also re-asserts it from OnBufWinEnter(), OnWinEnter() and
+	Tranquilize(), and after a `:w` that may have sourced a config, from a
+	zero-delay timer scheduled by ScheduleReassertLaststatus().  The timer
+	is needed because the reload runs :source inside the BufWritePost
+	autocommand, and SourcePost does not fire for that nested source; the
+	timer runs once the whole autocommand chain has finished.
+
 ==============================================================================
 4. Highlighting		*zen-internals-highlight*
 

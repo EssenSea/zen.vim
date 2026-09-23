@@ -266,6 +266,26 @@ Test('global options are restored on leave', () => {
   assert_equal(5, &sidescroll)
 })
 
+Test('laststatus is re-asserted after a reload resets it', () => {
+  # Regression: on `:w` of a vimrc the reload runs :source inside the
+  # BufWritePost autocommand; a config that sets `&laststatus = 2` during that
+  # source makes every window draw a status line again.  Zen re-asserts
+  # laststatus=0 from a zero-delay timer after the autocommand chain ends.
+  zen#Open('80x20')
+  assert_equal(0, &laststatus)
+  # Simulate the config setting it during the reload.
+  set laststatus=2
+  doautocmd BufWritePost
+  # The fix runs from a zero-delay timer, so let the main loop turn.
+  sleep 30m
+  assert_equal(0, &laststatus)
+  # WinEnter must also restore it.
+  set laststatus=2
+  doautocmd WinEnter
+  assert_equal(0, &laststatus)
+  zen#Close()
+})
+
 Test('winwidth/winheight restored in correct order', () => {
   # On a small CI screen Vim clamps the global winheight, so only verify
   # the save/restore logic rather than assuming arbitrary values.

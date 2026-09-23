@@ -56,6 +56,13 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- The separator rows reappeared after a config reload.  `:w` on a vimrc can
+  source it (via a BufWritePost autocommand), and a config that sets
+  `&laststatus = 2` made every window draw a status line again.  Zen now
+  re-asserts 'laststatus' = 0 on BufWinEnter/WinEnter and on ColorScheme, and
+  schedules one more re-assert from a zero-delay timer after a `:w`, so the
+  value is restored once the whole autocommand chain (including the nested
+  :source) has finished.
 - The status line above the content and between the left/right pads was
   visible again.  'laststatus' = 0 only removes the status line of the
   bottom-most window of a column; a window that has another window below it

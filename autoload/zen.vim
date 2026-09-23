@@ -196,6 +196,46 @@ def HideAllStatuslines()
   endfor
 enddef
 
+# Re-assert 'laststatus' = 0 while Zen is active.
+#
+# Sourcing a vimrc while Zen is active can run `&laststatus = 2` (some configs
+# force "always show a statusline"), which makes every window draw a status
+# line again -- the blank separator rows reappear.  Zen only sets 'laststatus'
+# on entry, so it has to re-assert it whenever a config reload or another
+# plugin may have changed it.  Unlike 'statusline' this is a global option, so
+# a single assignment is enough; it is skipped when already 0 to avoid a
+# needless redraw.
+def ReassertLaststatus()
+  if &laststatus != 0
+    set laststatus=0
+  endif
+enddef
+
+# Re-assert from a zero-delay timer, de-duplicated like ScheduleConfine().
+#
+# On `:w` of a vimrc, the reload runs `:source` from inside the BufWritePost
+# autocommand.  A vimrc that sets `&laststatus = 2` does so during that
+# source, and SourcePost does not fire for it (the :source runs inside an
+# autocommand), so there is no later event to hook.  A zero-delay timer runs
+# after the whole autocommand chain -- including the source -- has finished,
+# which is the reliable point to restore the invariant.
+var laststatus_pending = false
+
+def ScheduleReassertLaststatus()
+  if laststatus_pending || !exists('t:zen_pads')
+    return
+  endif
+  laststatus_pending = true
+  Defer(() => ApplyReassertLaststatus())
+enddef
+
+def ApplyReassertLaststatus()
+  laststatus_pending = false
+  if exists('#zen') && exists('t:zen_pads')
+    ReassertLaststatus()
+  endif
+enddef
+
 # Hide 'number', 'relativenumber' and 'colorcolumn' unless the user asked
 # to keep line numbers.
 def HideLinenr()
@@ -643,6 +683,9 @@ enddef
 # Blend interface elements into the background for a distraction-free look.
 # All groups are updated with a single hlset() call.
 def Tranquilize()
+  # A color scheme reload (for example from a sourced vimrc) can also reset
+  # 'laststatus'; keep the invariant.
+  ReassertLaststatus()
   var groups = copy(TRANQUILIZED_GROUPS)
   # Blend the winbar highlight groups into the background too, but only when
   # they exist (they were added with 'winbar').
@@ -980,6 +1023,7 @@ def OnBufWinEnter()
   if !exists('t:zen_pads')
     return
   endif
+  ReassertLaststatus()
   HideLinenr()
   HideStatusline()
   ScheduleConfine()
@@ -987,6 +1031,7 @@ enddef
 
 def OnWinEnter()
   if exists('t:zen_pads')
+    ReassertLaststatus()
     HideStatusline()
   endif
 enddef
@@ -1188,6 +1233,9 @@ def ZenOn(dim_arg: string)
       # Only act on this tab; ConfineWindows() pulls stray windows back.
       autocmd BufWinEnter * call OnBufWinEnter()
       autocmd WinEnter    * call OnWinEnter()
+      # A :w of a config file may source it and reset 'laststatus'; re-assert
+      # once the whole autocommand chain (including the source) has finished.
+      autocmd BufWritePost * call ScheduleReassertLaststatus()
       # WinClosed fires when a window is closed; :only / <C-w>o close the pads.
       if exists('##WinClosed')
         autocmd WinClosed * call OnWinClosed()
@@ -1262,6 +1310,7 @@ def AbortOn()
   # Reset the deferred-action flags in case the failure interrupted one.
   resizing = false
   confine_pending = false
+  laststatus_pending = false
   pads_check_pending = false
   reanchoring = false
 enddef
