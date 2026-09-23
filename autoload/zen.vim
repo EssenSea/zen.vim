@@ -219,30 +219,27 @@ enddef
 # runs and ends the session.  ZenOff() works on tab-local state, so the timer
 # switches back to the tab that held the session before calling it (the timer
 # may fire after the current tab has already changed).
-var zenoff_pending = false
+# The tab that held the session; kept here because the deferred close must
+# run there (the session state is tab-local).
 var zenoff_tab = 0
 
 def ScheduleZenOff()
-  # Only a tab that actually holds a session can be left because of Zen.
-  if zenoff_pending || !exists('t:zen_revert')
+  # Only a tab that actually holds a session can be left because of Zen, and
+  # only queue the close once (a later event must not move zenoff_tab).
+  if !exists('t:zen_revert') || IsScheduled('zenoff')
     return
   endif
-  zenoff_pending = true
   zenoff_tab = tabpagenr()
-  Defer(() => ApplyZenOff())
+  Schedule('zenoff', () => ApplyZenOff())
 enddef
 
 def CancelZenOff()
-  zenoff_pending = false
+  CancelDeferred('zenoff')
   zenoff_tab = 0
 enddef
 
 def ApplyZenOff()
-  if !zenoff_pending
-    return
-  endif
   var tab = zenoff_tab
-  zenoff_pending = false
   zenoff_tab = 0
   if tab <= 0 || tab > tabpagenr('$') || !exists('#zen')
     return
@@ -266,18 +263,14 @@ enddef
 # whole autocommand chain -- including the source -- has finished, which is
 # the reliable point to restore both invariants.  Tranquilize() itself calls
 # ReassertLaststatus() first.
-var restore_pending = false
-
 def ScheduleRestore()
-  if restore_pending || !exists('t:zen_pads')
+  if !exists('t:zen_pads')
     return
   endif
-  restore_pending = true
-  Defer(() => ApplyRestore())
+  Schedule('restore', () => ApplyRestore())
 enddef
 
 def ApplyRestore()
-  restore_pending = false
   if exists('#zen') && exists('t:zen_pads')
     Tranquilize()
   endif
@@ -448,6 +441,47 @@ def Defer(Fn: func)
   else
     Fn()
   endif
+enddef
+
+# De-duplicated deferred dispatch.
+#
+# Several handlers must run "once the editor is back in the main loop" and may
+# fire in bursts (WinResized, WinClosed, a cluster of events).  Each such
+# action is keyed so that only one timer is outstanding per key: a second
+# Schedule() with the same key while one is pending is ignored, and the key is
+# cleared when the callback runs (or via Cancel()).  This replaces the former
+# per-action `<name>_pending` booleans.
+var DEFERRED: dict<bool> = {}
+
+def Schedule(key: string, Fn: func)
+  if get(DEFERRED, key, false)
+    return
+  endif
+  DEFERRED[key] = true
+  Defer(() => RunDeferred(key, Fn))
+enddef
+
+# Whether an action with {key} is already queued.
+def IsScheduled(key: string): bool
+  return get(DEFERRED, key, false)
+enddef
+
+def RunDeferred(key: string, Fn: func)
+  # The entry may have been cancelled after it was queued.
+  if !get(DEFERRED, key, false)
+    return
+  endif
+  DEFERRED[key] = false
+  Fn()
+enddef
+
+def CancelDeferred(key: string)
+  DEFERRED[key] = false
+enddef
+
+# Forget every pending action (used when the session is torn down).
+def ResetDeferred()
+  DEFERRED = {}
 enddef
 
 # Return the window id of the window adjacent to the current one in {dir}
@@ -878,18 +912,14 @@ enddef
 # window often triggers several events.  ConfineWindows() is therefore
 # scheduled through a zero-delay timer and de-duplicated, so it runs once the
 # editor is back in the main loop and handles all stray windows in one pass.
-var confine_pending = false
-
 def ScheduleConfine()
-  if confine_pending || !exists('t:zen_pads')
+  if !exists('t:zen_pads')
     return
   endif
-  confine_pending = true
-  Defer(() => ConfineWindows())
+  Schedule('confine', () => ConfineWindows())
 enddef
 
 def ConfineWindows()
-  confine_pending = false
   if !exists('#zen') || !exists('t:zen_pads')
     return
   endif
@@ -1099,20 +1129,16 @@ enddef
 
 # React to a window being closed: if that removed a pad, leave Zen.  Closing
 # windows from inside WinClosed is unsafe, so it is deferred to the main loop.
-var pads_check_pending = false
-
 def OnWinClosed()
   # WinClosed fires just *before* the window is removed, so the pad is still
   # visible here.  Schedule a check to run once the layout has settled.
-  if pads_check_pending || !exists('t:zen_pads') || !exists('#zen')
+  if !exists('t:zen_pads') || !exists('#zen')
     return
   endif
-  pads_check_pending = true
-  Defer(() => CheckPads())
+  Schedule('pads', () => CheckPads())
 enddef
 
 def CheckPads()
-  pads_check_pending = false
   if !exists('#zen') || !exists('t:zen_pads')
     return
   endif
@@ -1364,13 +1390,11 @@ def AbortOn()
   RestoreHighlights(saved_highlights)
   EnablePlugins(disabled)
 
-  # Reset the deferred-action flags in case the failure interrupted one.
-  resizing = false
-  confine_pending = false
-  restore_pending = false
-  zenoff_pending = false
+  # Reset the deferred actions and the synchronous re-entrancy guards in case
+  # the failure interrupted one.
+  ResetDeferred()
   zenoff_tab = 0
-  pads_check_pending = false
+  resizing = false
   reanchoring = false
 enddef
 

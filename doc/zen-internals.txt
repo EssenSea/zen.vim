@@ -243,6 +243,17 @@ schedules the close with |timer_start()| at zero delay, which runs the
 callback when Vim is back in the main loop.  This does not depend on the
 user's mappings, unlike feeding a <Plug> key.
 
+Several handlers need the same "run once the editor is back in the main
+loop, at most once per burst" behaviour: ConfineWindows(), ApplyRestore(),
+ApplyZenOff() and CheckPads().  They all go through Schedule(): it keys the
+action in a script-local DEFERRED dictionary, so a second Schedule() with a
+pending key is ignored and only one timer is outstanding per action.  The
+key is cleared when the callback runs, or by CancelDeferred() (used to keep
+the session on :tabnew); ResetDeferred() clears everything when a session
+is torn down, so AbortOn() cannot leave a stale pending flag behind.  The
+synchronous re-entrancy guards (resizing for ResizePads(), reanchoring for
+Reanchor()) are separate: those functions run immediately, not deferred.
+
 ==============================================================================
 9. Messages			*zen-internals-messages*
 

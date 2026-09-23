@@ -192,6 +192,11 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed (internals)
 
+- The four deferred handlers (ConfineWindows, ApplyRestore, ApplyZenOff and
+  CheckPads) now share one de-duplicating scheduler (`Schedule()`, a keyed
+  script-local dictionary) instead of one `<name>_pending` boolean each.
+  ResetDeferred() clears them all on teardown, so AbortOn() can no longer
+  leave a stale flag behind.  Behaviour is unchanged.
 - Highlighting uses the built-in |hlget()| / |hlset()| API instead of
   `synIDattr()` and `:highlight` strings.
 - Options are saved and restored with typed `&option` assignments; the
