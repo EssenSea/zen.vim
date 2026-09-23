@@ -48,6 +48,14 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- The status line rows of the pads were still visible: tranquillizing the
+  highlight groups cleared only `gui` (or only `cterm`), so a leftover
+  `term`/reverse/bold survived and the row showed as a coloured bar.  All
+  three attribute groups are now cleared (and the GUI colour is no longer
+  passed to cterm, which raised E421).
+- A failure while entering Zen reported `E608: Cannot :throw exceptions with
+  'Vim' prefix` instead of the original error.  The rollback no longer does
+  `throw v:exception`; it uses `echoerr` to keep the original message.
 - Opening help (`<F1>` / `:help`) while Zen was active raised
   `E21: Cannot make changes, 'modifiable' is off`.  SetupPad() used
   `append(buf, ...)`, which treats the first argument as a line number and
@@ -55,7 +63,7 @@ on [Keep a Changelog](https://keepachangelog.com/).
   `appendbufline(buf, ...)`.
 - `:only` / `<C-w>o` (or closing a pad by hand) removed the pad windows but
   left the session active with a broken layout and no margins.  A |WinClosed|
-  handler now detects a missing pad and leaves Zen.
+  handler now detects a missing pad and re-anchors Zen (see below).
 - `'winfixbuf'` was added in Vim 9.1.0147, later than the 9.1.0000 minimum,
   but it was used unconditionally after an earlier clean-up.  It is probed
   again (HasWinFixBuf()) so the plugin works on the earliest supported

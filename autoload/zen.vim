@@ -115,16 +115,23 @@ enddef
 # Apply a foreground and background colour to a list of highlight groups in a
 # single hlset() call.  A colour of 'NONE' clears the corresponding attribute.
 def SetGroupColors(groups: list<string>, fg: string, bg: string)
+  # Set the colour for the active mode and clear the attribute flags.  All
+  # three attribute groups (term, cterm, gui) must be cleared, otherwise a
+  # leftover reverse/bold made a pad's status line row visible.  Only the
+  # colours for the active mode are set: a GUI colour like "#202020" is not a
+  # valid cterm colour (E421) and vice versa.
   var use_gui = UseGui()
   var items: list<dict<any>> = []
   for group in groups
+    var item: dict<any> = {name: group, gui: {}, cterm: {}, term: {}}
     if use_gui
-      # gui: {} clears the attribute flags (bold, ...), as in the original
-      # `:highlight Group guifg=.. guibg=.. gui=NONE`.
-      items->add({name: group, guifg: fg, guibg: bg, gui: {}})
+      item.guifg = fg
+      item.guibg = bg
     else
-      items->add({name: group, ctermfg: fg, ctermbg: bg, cterm: {}})
+      item.ctermfg = fg
+      item.ctermbg = bg
     endif
+    items->add(item)
   endfor
   hlset(items)
 enddef
@@ -1096,7 +1103,9 @@ def ZenOn(dim_arg: string)
     HideStatusline()
   catch
     AbortOn()
-    throw v:exception
+    # Re-raise without `throw v:exception`: throwing the raw "Vim:..." text
+    # can itself fail with E608.  echoerr keeps the original message.
+    echoerr v:exception
   endtry
 
   # Callbacks run after the session is complete, so a throwing callback cannot

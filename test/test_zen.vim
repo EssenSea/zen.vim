@@ -294,6 +294,26 @@ Test('highlight groups are restored exactly on leave', () => {
   assert_equal(before_slnc, hlget('StatusLineNC', true))
 })
 
+Test('Zen strips bold/reverse from the interface highlight groups', () => {
+  # Regression: clearing only gui (or only cterm) left the 'term' attributes
+  # (and the other colour set) behind, so StatusLine/StatusLineNC kept
+  # reverse/bold and a pad's status line row was visible as a coloured bar.
+  execute 'highlight StatusLine gui=bold,reverse cterm=bold,reverse'
+  execute 'highlight StatusLineNC gui=reverse cterm=reverse'
+  zen#Open('80x20')
+  for g in ['StatusLine', 'StatusLineNC', 'NonText', 'VertSplit']
+    var info = hlget(g, true)
+    if !empty(info)
+      var e: dict<any> = info[0]
+      for attr in ['gui', 'cterm', 'term']
+        var v = get(e, attr, {})
+        assert_true(empty(v))
+      endfor
+    endif
+  endfor
+  zen#Close()
+})
+
 Test('highlight attribute added by Zen is removed again', () => {
   execute 'highlight ColorColumn guibg=LightRed'
   var before = hlget('ColorColumn', true)
