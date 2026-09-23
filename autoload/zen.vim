@@ -65,6 +65,19 @@ const TRANQUILIZED_GROUPS: list<string> = [
   'StatusLine', 'StatusLineNC', 'SignColumn',
 ]
 
+# Content used for the window-local 'statusline' while Zen is active.
+#
+# 'laststatus' = 0 removes the status line of the bottom-most window of a
+# column, but a window that has another window below it *always* keeps a
+# one-row status line to separate the two (see |status-line|).  With the
+# default (empty) 'statusline', Vim draws the built-in default text there
+# (buffer name, ruler, ...), which shows up as a coloured bar between the
+# pads.  A single space is the smallest non-empty value, so Vim fills the row
+# with the 'stl'/'stlnc' 'fillchars' (a space, set in ZenOn) instead.  The
+# value lives in this constant so InitPad() and HideStatusline() cannot drift
+# apart again.
+const BLANK_STATUSLINE: string = ' '
+
 # ---------------------------------------------------------------------------
 # Session state (stored in tab-local variables).
 #   t:zen_pads         buffer numbers of the four pads {l,r,t,b}
@@ -147,14 +160,40 @@ def Relsz(expr: any, limit: number): number
   return limit * str2nr(e[: -2]) / 100
 enddef
 
-# Hide the status line, both for the window and for itself.
+# Hide the status line of the current window.
+#
+# The option must be set to a non-empty blank string: an empty 'statusline'
+# makes Vim fall back to the built-in default text, which is exactly the row
+# we are trying to hide.  Setting it unconditionally would redraw on every
+# cursor bounce out of a pad, so only touch the option when it differs.
 def HideStatusline()
-  # An empty status line leaves a blank row; only touch the option when it is
-  # not already empty, since a redundant :setlocal triggers a redraw that is
-  # visible when the cursor bounces out of a pad.
-  if !empty(&l:statusline)
-    setlocal statusline=
+  if &l:statusline !=# BLANK_STATUSLINE
+    &l:statusline = BLANK_STATUSLINE
   endif
+enddef
+
+# Hide the status line of every window in the current tab page without leaving
+# the current window.  Used on entry and when the layout is rebuilt, since the
+# master window and the three pads that have a window below them all need it.
+#
+# getwininfo() without an argument returns the windows of *all* tab pages, so
+# the current tab number is checked: ZenOn() creates the session in a new tab
+# via `tab split`, and touching the original tab would leave its windows with
+# a blank 'statusline' after :Zen!.
+def HideAllStatuslines()
+  var tabnr = tabpagenr()
+  for winid in getwininfo()
+      ->filter((_: number, w: dict<any>): bool => w.tabnr == tabnr)
+      ->mapnew((_: number, w: dict<any>): number => w.winid)
+    if win_getid() == winid
+      HideStatusline()
+    else
+      # `&l:` is required: a bare `&statusline =` would assign the global
+      # default, not the window-local value.  string() quotes the space so no
+      # manual escaping is needed.
+      win_execute(winid, '&l:statusline = ' .. string(BLANK_STATUSLINE))
+    endif
+  endfor
 enddef
 
 # Hide 'number', 'relativenumber' and 'colorcolumn' unless the user asked
@@ -245,7 +284,9 @@ def InitPad(command: string): number
   # status line and (where the option exists) no winbar.
   setlocal buftype=nofile bufhidden=wipe nomodifiable nobuflisted
     \ noswapfile nonumber norelativenumber nocursorline nocursorcolumn
-    \ colorcolumn= winfixwidth winfixheight nowrap statusline=
+    \ colorcolumn= winfixwidth winfixheight nowrap
+  # Keep the single source of the blank value (see BLANK_STATUSLINE).
+  &l:statusline = BLANK_STATUSLINE
   if exists('&winbar')
     setlocal winbar=
   endif
@@ -1017,6 +1058,7 @@ def Reanchor()
       BindPadAutocmd(t:zen_pads[pad.key], pad.repel)
     endfor
     ResizePads()
+    HideAllStatuslines()
   finally
     reanchoring = false
   endtry
@@ -1100,7 +1142,10 @@ def ZenOn(dim_arg: string)
       endif
     augroup END
 
-    HideStatusline()
+    # The master window and the top/left/right pads all keep a separator row
+    # (they have a window below them); hide all of them, not just the current
+    # one (which is the bottom pad here).
+    HideAllStatuslines()
   catch
     AbortOn()
     # Re-raise without `throw v:exception`: throwing the raw "Vim:..." text

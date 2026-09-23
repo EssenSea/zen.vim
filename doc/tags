@@ -1,6 +1,7 @@
 :Zen	zen.txt	/*:Zen*
 ZenEnter	zen.txt	/*ZenEnter*
 ZenLeave	zen.txt	/*ZenLeave*
+every	zen-internals.txt	/*every*
 g:zen_bg	zen.txt	/*g:zen_bg*
 g:zen_callbacks	zen.txt	/*g:zen_callbacks*
 g:zen_decoration_density	zen.txt	/*g:zen_decoration_density*

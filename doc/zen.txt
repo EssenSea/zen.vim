@@ -183,8 +183,13 @@ key is already mapped; they are removed again on leaving:
 The four padding windows are ordinary Vim windows: Vim has no way
 to draw a margin that is not a window.  They are made to look like plain
 background (no numbers, no cursor line/column, no colorcolumn, no
-winbar, a blank status line and a background-coloured status line
-highlight).
+winbar and no visible status line).
+
+'laststatus' = 0 only removes the status line of the bottom-most window
+of a column; a window that has another window below it keeps a separator
+row.  Zen hides that row in every window (the master and the top, left
+and right pads) by giving 'statusline' a single blank, filling it with a
+space and blending the StatusLine highlights into the background.
 
 Closing a pad, or using |:only| / <C-w>o, does not leave Zen.  The
 surviving window becomes the new master and the pads are rebuilt

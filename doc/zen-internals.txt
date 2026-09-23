@@ -98,6 +98,26 @@ Saving and restoring ~
 	The window sizes are forced to 1 so that the pads alone decide the
 	geometry.
 
+	Hiding the status line ~
+	'laststatus' = 0 only removes the status line of the bottom-most
+	window of a column.  A window that has another window below it always
+	keeps a one-row status line, because it separates the two windows
+	(see |status-line|).  The master window and the top, left and right
+	pads are all in that position, so 'laststatus' alone cannot hide them.
+
+	When 'statusline' is empty Vim draws the built-in default text
+	(buffer name, ruler, ...) in that row, which shows up as a coloured
+	bar.  Zen therefore sets the window-local 'statusline' to a single
+	space (BLANK_STATUSLINE) for *every* window in the tab page, and sets
+	the 'stl'/'stlnc' 'fillchars' to a space as well.
+	HideAllStatuslines() does this without leaving the current window,
+	using |win_execute()|.
+
+	Tranquilize() blends StatusLine and StatusLineNC into the Normal
+	background colour, so the space-filled row is invisible.  The
+	separator row is hidden by the combination of all three, not by
+	'laststatus' alone.
+
 ==============================================================================
 4. Highlighting		*zen-internals-highlight*
 

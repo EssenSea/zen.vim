@@ -15,10 +15,11 @@ on [Keep a Changelog](https://keepachangelog.com/).
 - `:only` / `<C-w>o`, or closing a pad by hand, no longer leaves Zen.  The
   surviving window becomes the new master and the pads are rebuilt around it
   (Reanchor()).  Replaces the previous behaviour of leaving Zen.
-- Pads are made more thoroughly background-like: an empty status line is
-  only set when needed (fewer redraws when the cursor bounces out), the
-  winbar is cleared when the option exists, and the WinBar/WinBarNC
-  highlight groups are blended in when present.
+- Pads are made more thoroughly background-like: the winbar is cleared
+  when the option exists, and the WinBar/WinBarNC highlight groups are
+  blended in when present.  The status line is hidden for every window
+  (see the Fixed entry below), and the option is only rewritten when it
+  actually differs, to avoid a redraw when the cursor bounces out.
 - Raised the minimum supported Vim to **9.1.1652** (it was 9.1.0000).
   plugin/zen.vim, `ci.sh` and the CI matrix now require 9.1.1652, which
   covers the features used by the implementation: gettext()/bindtextdomain()
@@ -48,11 +49,31 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- The status line above the content and between the left/right pads was
+  visible again.  'laststatus' = 0 only removes the status line of the
+  bottom-most window of a column; a window that has another window below it
+  keeps a separator row (see |status-line|).  That row is filled from the
+  window-local 'statusline', and an *empty* value makes Vim draw the
+  built-in default text (buffer name, ruler, ...) there.  The value is now
+  the non-empty BLANK_STATUSLINE (a single space) for the master and every
+  pad, applied by HideAllStatuslines() on entry and after re-anchoring.
 - The status line rows of the pads were still visible: tranquillizing the
   highlight groups cleared only `gui` (or only `cterm`), so a leftover
   `term`/reverse/bold survived and the row showed as a coloured bar.  All
   three attribute groups are now cleared (and the GUI colour is no longer
   passed to cterm, which raised E421).
+- Hiding the status line leaked into other tab pages.  getwininfo() without
+  an argument returns the windows of *all* tabs, so HideAllStatuslines()
+  blanked the original tab's windows too and left them with a one-space
+  'statusline' after leaving Zen.  It now restricts itself to the current
+  tab page (tabnr check), matching the convention used elsewhere.
+- The test suite could report success while assertions failed.  The
+  `assert_*()` functions add failures to |v:errors| and return non-zero;
+  they only throw for the `:assert_*` command forms, so the try/catch in
+  the test runner never saw a failed `assert_equal()`.  Each test now
+  clears |v:errors|, checks it afterwards, and reports the collected
+  messages.  Several previously hidden failures (stale window lookup,
+  type-strict boolean comparisons, offset expressions) were fixed with it.
 - A failure while entering Zen reported `E608: Cannot :throw exceptions with
   'Vim' prefix` instead of the original error.  The rollback no longer does
   `throw v:exception`; it uses `echoerr` to keep the original message.

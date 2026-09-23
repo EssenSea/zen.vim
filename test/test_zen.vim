@@ -45,18 +45,32 @@ def ResetScratch()
   setlocal nomodified
 enddef
 
+# Run one test function.
+#
+# The assert_*() built-ins add failures to |v:errors| instead of throwing
+# (throw only happens for the :assert_* command forms or when the message is
+# checked).  So a test passes only when the function returns without error
+# *and* v:errors stayed empty.  v:errors is cleared before every case.
 def Test(name: string, Fn: func)
   ResetScratch()
+  v:errors = []
+  var err: string = ''
   try
     Fn()
+  catch
+    err = v:exception
+  endtry
+  if empty(err) && !empty(v:errors)
+    err = join(v:errors, ' | ')
+  endif
+  if empty(err)
     passed += 1
     Report('ok   - ' .. name)
-  catch
+  else
     failed += 1
-    echohl ErrorMsg
-    Report('FAIL - ' .. name .. ': ' .. v:exception)
-    echohl None
-  endtry
+    Report('FAIL - ' .. name .. ': ' .. err)
+  endif
+  v:errors = []
   ResetScratch()
 enddef
 
@@ -119,6 +133,9 @@ def Setup()
   if !exists(':Zen')
     runtime plugin/zen.vim
   endif
+  # autoload/zen.vim is loaded lazily on the first zen#... call; call a cheap
+  # public function so exists('*zen#Open') is true for the API tests below.
+  zen#Complete('', '', 0)
   if ZenActive()
     zen#Close()
   endif
@@ -189,9 +206,11 @@ Test('percentage expression 100%x50%', () => {
 })
 
 Test('offset expression 120x20', () => {
+  # The width is clamped to the screen by ResizePads(); check against the
+  # actual screen width so the test works on a small CI terminal too.
   zen#Open('120x20')
   var dim = t:zen_dim
-  assert_equal(120, dim.width)
+  assert_equal(min([120, &columns]), dim.width)
   assert_equal(20, dim.height)
   zen#Close()
 })
@@ -270,14 +289,16 @@ Test('winwidth/winheight restored in correct order', () => {
 })
 
 Test('fillchars and guioptions-like string options are restored', () => {
+  # Take the snapshot that ZenOn() will save, *after* changing the value.
+  # A direct assignment avoids `:set` treating "," and ":" as a range.
+  &fillchars = 'vert:|,fold:-,eob:~,lastline:@'
   var saved = &fillchars
-  set fillchars=vert:\ ,stl:\ ,stlnc:\ 
   var during_on = ''
   zen#Open('80x20')
   during_on = &fillchars
   zen#Close()
   assert_equal(saved, &fillchars)
-  assert_true(during_on =~ 'stl:')
+  assert_true(during_on =~# 'stl:')
 })
 
 Test('highlight groups are restored exactly on leave', () => {
@@ -360,7 +381,10 @@ Test('leaving Zen returns to the original tab and window', () => {
 Test('help window stays within content column', () => {
   zen#Open('80x20')
   help
-  # Locate the help window.
+  # ConfineWindows() runs from a zero-delay timer, so let the main loop turn
+  # before looking the window up: confining may move it, and a stale window
+  # number would point at another window.
+  ConfineSettle()
   var helpwin = 0
   for i in range(1, winnr('$'))
     if bufname(winbufnr(i)) =~ 'help.txt\|doc/'
@@ -379,14 +403,67 @@ Test('pads look like plain background', () => {
     var w = bufwinnr(ZenPads()[k])
     assert_true(w > 0)
     # No numbers, no cursor line/column, no colorcolumn, blank statusline.
-    assert_equal(0, getwinvar(w, '&number'))
-    assert_equal(0, getwinvar(w, '&relativenumber'))
-    assert_equal(0, getwinvar(w, '&cursorline'))
-    assert_equal(0, getwinvar(w, '&cursorcolumn'))
+    # The boolean window options come back as v:t_bool, so assert_false() is
+    # used instead of assert_equal(0, ...) (which is type-strict).
+    assert_false(getwinvar(w, '&number'))
+    assert_false(getwinvar(w, '&relativenumber'))
+    assert_false(getwinvar(w, '&cursorline'))
+    assert_false(getwinvar(w, '&cursorcolumn'))
     assert_equal('', getwinvar(w, '&colorcolumn'))
-    assert_equal('', getwinvar(w, '&statusline'))
+    # A single space, not the empty string: an empty 'statusline' makes Vim
+    # draw the built-in default text in the separator row.
+    assert_equal(' ', getwinvar(w, '&statusline'))
   endfor
   zen#Close()
+})
+
+Test('every window hides its status line', () => {
+  # Regression: 'laststatus' = 0 only removes the status line of the
+  # bottom-most window of a column.  A window that has another window below
+  # it keeps a separator row, so the master and the top/left/right pads must
+  # all get the blank 'statusline' -- otherwise Vim draws the built-in
+  # default text there.
+  zen#Open('80x20')
+  assert_equal(0, &laststatus)
+  for i in range(1, winnr('$'))
+    assert_equal(' ', getwinvar(i, '&statusline'))
+  endfor
+  # 'stl'/'stlnc' are filled with spaces, so the blank row is invisible.
+  assert_true(&fillchars =~# 'stl: ')
+  assert_true(&fillchars =~# 'stlnc: ')
+  zen#Close()
+})
+
+Test('status line hiding is applied again after re-anchoring', () => {
+  zen#Open('80x20')
+  split
+  wincmd o
+  sleep 30m
+  assert_true(ZenActive())
+  for i in range(1, winnr('$'))
+    assert_equal(' ', getwinvar(i, '&statusline'))
+  endfor
+  zen#Close()
+})
+
+Test('leaving does not leak the blank statusline into other windows', () => {
+  # ZenOn() builds the session in a new tab (tab split).  Hiding the status
+  # line must stay inside that tab; getwininfo() returns all tabs, so a
+  # missing tab check would blank the original windows permanently.
+  split
+  vsplit
+  var before: list<string> = []
+  for i in range(1, winnr('$'))
+    before->add(getwinvar(i, '&statusline'))
+  endfor
+  zen#Open('80x20')
+  for i in range(1, winnr('$'))
+    assert_equal(' ', getwinvar(i, '&statusline'))
+  endfor
+  zen#Close()
+  for i in range(1, winnr('$'))
+    assert_equal(before[i - 1], getwinvar(i, '&statusline'))
+  endfor
 })
 
 Test('<C-w>h/j/k/l/t/b never move into a pad', () => {
@@ -485,18 +562,24 @@ Test('oversized dimensions are clamped to screen', () => {
 })
 
 Test('negative offset expression parses', () => {
+  # '+'/'-' offset the content, they do not resize it (see doc/zen.txt).
   zen#Open('80-10x20+2')
   var dim = t:zen_dim
-  assert_equal(70, dim.width)
-  assert_equal(22, dim.height)
+  assert_equal(min([80, &columns]), dim.width)
+  assert_equal(-10, dim.xoff)
+  assert_equal(20, dim.height)
+  assert_equal(2, dim.yoff)
   zen#Close()
 })
 
 Test('percent offset expression parses', () => {
+  # 50% of 80 columns = 40, 50% of 24 lines = 12; the offsets are separate.
   zen#Open('50%+5x50%-2')
   var dim = t:zen_dim
-  assert_equal(40 + 5, dim.width)
-  assert_equal(12 - 2, dim.height)
+  assert_equal(min([40, &columns]), dim.width)
+  assert_equal(5, dim.xoff)
+  assert_equal(12, dim.height)
+  assert_equal(-2, dim.yoff)
   zen#Close()
 })
 
@@ -504,7 +587,7 @@ Test('empty dimension uses configured defaults', () => {
   g:zen_width = 100
   g:zen_height = '50%'
   zen#Toggle()
-  assert_equal(100, t:zen_dim.width)
+  assert_equal(min([100, &columns]), t:zen_dim.width)
   assert_equal(12, t:zen_dim.height)
   zen#Close()
 })
