@@ -1,5 +1,9 @@
 #!/bin/sh
 # ============================================================================
+# LLM POWERED
+#
+# Developed with assistance from DeepSeek V4.1 and the DeepSeek harness.
+# ============================================================================
 # zen.vim package-convention conformance check
 #
 # Verifies the structural and stylistic rules described in
@@ -67,6 +71,12 @@ check "no stale goyo identifiers remain (upstream refs excepted)" \
 
 check "zen namespace is used consistently" \
   "grep -q 'complete=customlist,zen#Complete' plugin/zen.vim && grep -q 'zen.Toggle' plugin/zen.vim && grep -q 'zen.Open' plugin/zen.vim && grep -q 'zen.Close' plugin/zen.vim"
+
+check "LLM POWERED notice is present in the sources and docs" \
+  "grep -qi 'LLM POWERED' plugin/zen.vim autoload/zen.vim README.md doc/zen.txt doc/zen-internals.txt"
+
+check "the zen-llm help tag exists" \
+  "grep -q 'zen-llm' doc/tags"
 
 check "all source comments are in English" \
   "! grep -rlP '[\x{4e00}-\x{9fff}]' plugin autoload test >/dev/null 2>&1"

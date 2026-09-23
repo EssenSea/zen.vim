@@ -7,6 +7,14 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Prominent **LLM POWERED** notices: the plugin and its tests/docs were
+  developed with assistance from DeepSeek V4.1 and the DeepSeek harness.
+  Noted at the top of the source files, test scripts and documentation, plus
+  `:help zen-llm`.
+- `test/run_pty.py` / `test/pty.sh` / `make pty`: run Vim under a real pseudo
+  terminal to exercise the parts `vim -es` cannot (window layout, WinResized,
+  the pad bounce, and the `:Zen` command typed by the user).  Wired into
+  `make check` and CI.
 - plugin/zen.vim now uses the vim9-mix layout: the version check is legacy
   Vim script, so loading the plugin on a Vim older than 9.1.0000 exits
   cleanly with a warning instead of failing on the `:vim9script` command.

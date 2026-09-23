@@ -1,4 +1,6 @@
 # zen.vim message catalogue template.
+# LLM POWERED: developed with assistance from DeepSeek V4.1 and
+# the DeepSeek harness.
 # Copyright (C) 2026 zen.vim fork contributors
 # This file is distributed under the same license as the zen.vim package.
 #

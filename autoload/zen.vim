@@ -6,6 +6,15 @@ vim9script
 # Last Change:  2026 Sep 23
 # License:      MIT (see LICENSE)
 #
+# ===========================================================================
+# LLM POWERED
+#
+# This plugin was developed with assistance from DeepSeek V4.1 and the
+# DeepSeek harness.  Parts of the code, tests and documentation were produced
+# or reviewed by that large language model; review them with the usual care
+# before relying on them.
+# ===========================================================================
+#
 # This file is the Vim9script implementation of the plugin.  plugin/zen.vim
 # defines the user-facing command and imports this file as `zen`; only the
 # exported items below are part of the public API.

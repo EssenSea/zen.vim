@@ -1,5 +1,9 @@
 #!/bin/sh
 # ============================================================================
+# LLM POWERED
+#
+# Developed with assistance from DeepSeek V4.1 and the DeepSeek harness.
+# ============================================================================
 # zen.vim local CI
 #
 # Runs the same checks as .github/workflows/ci.yml against the Vim found in
@@ -38,6 +42,9 @@ sh test/api.sh
 
 echo "== test =="
 sh test/run.sh vim
+
+echo "== pty =="
+sh test/pty.sh
 
 echo "== bench (informational) =="
 sh test/bench.sh

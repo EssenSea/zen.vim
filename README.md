@@ -2,6 +2,11 @@
 
 Distraction-free writing mode for Vim — 无干扰写作模式。
 
+> **LLM POWERED** — developed with assistance from **DeepSeek V4.1** and the
+> **DeepSeek harness**.  Parts of the code, tests and documentation were
+> produced or reviewed by that large language model; review them with the
+> usual care before relying on them.
+
 This repository is a fork of
 [goyo.vim](https://github.com/junegunn/goyo.vim) that rewrites the
 implementation in **Vim9script** and organises the project
@@ -85,6 +90,8 @@ doc/tags                 help tags (regenerate with :helptags doc)
 lang/                    gettext catalogues (zen.pot, <lang>/LC_MESSAGES/zen.mo)
 test/test_zen.vim        test suite
 test/api.vim             Vim API contract tests
+test/run_pty.py          PTY check driver
+test/pty.sh              PTY check runner
 test/conformance.sh      package-convention checks
 test/run.sh              test runner
 test/bench.sh            micro-benchmark runner
@@ -97,8 +104,9 @@ Makefile                 common tasks
 
 ```sh
 make ci          # run the same checks as CI locally
-make check       # lint + conformance + api + tests
+make check       # lint + conformance + api + tests + pty
 make api         # Vim API contract tests (built-ins, events, options)
+make pty         # run Vim under a real pseudo terminal
 make test        # run the test suite
 make bench       # micro-benchmarks (median/min/max per operation)
 make tags        # regenerate doc/tags

@@ -1,5 +1,9 @@
 vim9script
 # ============================================================================
+# LLM POWERED
+#
+# Developed with assistance from DeepSeek V4.1 and the DeepSeek harness.
+# ============================================================================
 # zen.vim micro-benchmarks
 #
 # Run with:  sh test/bench.sh

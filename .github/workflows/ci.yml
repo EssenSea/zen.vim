@@ -61,5 +61,8 @@ jobs:
       - name: Test suite
         run: make test-vim
 
+      - name: PTY checks
+        run: make pty
+
       - name: Benchmarks (informational)
         run: make bench

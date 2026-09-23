@@ -36,9 +36,11 @@ zen-internals-version	zen-internals.txt	/*zen-internals-version*
 zen-internals-windows	zen-internals.txt	/*zen-internals-windows*
 zen-internals.txt	zen-internals.txt	/*zen-internals.txt*
 zen-introduction	zen.txt	/*zen-introduction*
+zen-llm	zen.txt	/*zen-llm*
 zen-mappings	zen.txt	/*zen-mappings*
 zen-notes	zen.txt	/*zen-notes*
 zen-options	zen.txt	/*zen-options*
 zen-requirements	zen.txt	/*zen-requirements*
+zen-translation	zen.txt	/*zen-translation*
 zen.txt	zen.txt	/*zen.txt*
 zen.vim	zen.txt	/*zen.vim*

@@ -1,5 +1,9 @@
 vim9script
 # ============================================================================
+# LLM POWERED
+#
+# Developed with assistance from DeepSeek V4.1 and the DeepSeek harness.
+# ============================================================================
 # zen.vim dependency contract tests
 #
 # The plugin leans on a number of Vim built-ins and events.  Vim does not

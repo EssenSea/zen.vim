@@ -6,6 +6,9 @@
 zen.vim implementation notes	*zen-internals*
 ==============================================================================
 
+	LLM POWERED: developed with assistance from DeepSeek V4.1 and the
+	DeepSeek harness.  See |zen-llm|.
+
 This file documents which Vim built-in mechanisms the implementation uses and
 why.  It is aimed at people maintaining zen.vim.  See |zen| for the user
 documentation.  Only Vim 9.1.0000 and newer is supported.

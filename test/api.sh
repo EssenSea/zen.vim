@@ -1,4 +1,9 @@
 #!/bin/sh
+# ============================================================================
+# LLM POWERED
+#
+# Developed with assistance from DeepSeek V4.1 and the DeepSeek harness.
+# ============================================================================
 # Run the zen.vim dependency contract tests (see test/api.vim).
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

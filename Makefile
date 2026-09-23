@@ -1,5 +1,8 @@
 # zen.vim — Makefile
 #
+# LLM POWERED: developed with assistance from DeepSeek V4.1 and the DeepSeek
+# harness.
+#
 # Common tasks.  The test suite uses Vim's built-in assert_*() functions and
 # needs Vim 9.1.0000+ with +vim9script.  See CONTRIBUTING.md.
 
@@ -7,7 +10,7 @@ VIM    ?= vim
 NVIM   ?= nvim
 PREFIX ?= $(HOME)/.vim
 
-.PHONY: all test test-vim test-nvim lint tags conformance api check clean install bench ci
+.PHONY: all test test-vim test-nvim lint tags conformance api pty check clean install bench ci
 
 all: check
 
@@ -43,7 +46,12 @@ conformance:
 api:
 	@sh test/api.sh
 
-check: lint conformance api test-vim
+# PTY checks: run Vim under a real pseudo terminal for the parts that
+# need a screen (layout, WinResized, the pad bounce, typed commands).
+pty:
+	@sh test/pty.sh
+
+check: lint conformance api test-vim pty
 
 # Install into a pack directory (see :help package-create).
 install:

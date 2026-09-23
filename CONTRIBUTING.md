@@ -1,5 +1,9 @@
 # Contributing
 
+> **LLM POWERED** — this project is developed with assistance from
+> **DeepSeek V4.1** and the **DeepSeek harness**.  Review AI-generated
+> changes as carefully as any other contribution.
+
 Thanks for improving zen.vim.  Please read this before opening a pull
 request.
 
@@ -44,8 +48,10 @@ Actions workflow:
 make ci        # or: sh ci.sh
 ```
 
-It runs the conformance checks, the API contract tests, the test suite and the
-benchmarks against the Vim in `$PATH`, which must be Vim 9.1.0000 or newer.
+It runs the conformance checks, the API contract tests, the test suite, the
+PTY checks and the benchmarks against the Vim in `$PATH`, which must be Vim
+9.1.0000 or newer.  The PTY checks need `python3` and a real terminal; they
+exercise the screen-dependent paths.
 Only Vim is supported; Neovim is out of scope.
 
 When you start using a new Vim built-in, event or option, add it to

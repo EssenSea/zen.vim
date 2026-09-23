@@ -1,5 +1,9 @@
 #!/bin/sh
 # ============================================================================
+# LLM POWERED
+#
+# Developed with assistance from DeepSeek V4.1 and the DeepSeek harness.
+# ============================================================================
 # zen.vim test runner
 #
 # Usage:

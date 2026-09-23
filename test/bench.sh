@@ -1,4 +1,9 @@
 #!/bin/sh
+# ============================================================================
+# LLM POWERED
+#
+# Developed with assistance from DeepSeek V4.1 and the DeepSeek harness.
+# ============================================================================
 # Run the zen.vim micro-benchmarks with a Vim that supports Vim9script.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

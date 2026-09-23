@@ -6,6 +6,11 @@
 Distraction-free writing mode	*zen* *zen.vim*
 ==============================================================================
 
+	LLM POWERED: this plugin was developed with assistance from DeepSeek
+	V4.1 and the DeepSeek harness.  Parts of the code, tests and
+	documentation were produced or reviewed by that large language model;
+	review them before relying on them.  See |zen-llm|.
+
 1. Introduction	*zen-introduction*
 
 zen.vim provides a distraction-free writing environment for Vim.  The text
@@ -220,6 +225,8 @@ through their autoload names: >
 The |:Zen| command and the |zen-mappings| are thin wrappers around
 these functions.
 
+==============================================================================
+9. Translation						*zen-translation*
 
 Messages can be translated using |gettext()|.  The package identifier is
 "zen" and the catalogues live under |zen-installation| as: >
@@ -241,14 +248,37 @@ The source is organised as a Vim package: >
 	test/			test suite
 <
 See |zen-internals| for the built-in mechanisms the implementation uses.
-Run the test suite with: >
+The test suite is run with: >
 
-make test
+make check
 <
-Or directly: >sh
+which runs the lint (loading the plugin), the package-convention
+checks, the API contract checks, the test suite and the
+PTY checks.  Individual targets: >
+
+make test	run the test suite
+make api	check the Vim built-ins used still behave as expected
+make pty	run the plugin under a real pseudo terminal
+make bench	run the micro-benchmarks
+<
+or run the scripts directly: >sh
 
 sh test/run.sh vim
+sh test/api.sh
+sh test/pty.sh
 <
+
+==============================================================================
+11. LLM assistance			*zen-llm*
+
+This plugin, including its implementation, tests and documentation, was
+developed with assistance from DeepSeek V4.1 and the DeepSeek harness.  The
+large language model produced or reviewed substantial parts of it.
+
+Treat the result as you would any other contribution: the code follows the
+conventions described in |zen-development| and is covered by the test suite,
+but it has not been audited by a human on every platform, so review and test
+it for your own use.
 
 ==============================================================================
 License: MIT, see the LICENSE file in the distribution.  zen.vim is a fork of
