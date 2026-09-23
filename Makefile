@@ -7,7 +7,7 @@ VIM    ?= vim
 NVIM   ?= nvim
 PREFIX ?= $(HOME)/.vim
 
-.PHONY: all test test-vim test-nvim lint tags conformance check clean install bench
+.PHONY: all test test-vim test-nvim lint tags conformance check clean install bench ci
 
 all: check
 
@@ -49,6 +49,10 @@ install:
 # Run the micro-benchmarks (reports median/min/max per operation).
 bench:
 	@sh test/bench.sh
+
+# Run the same checks as CI (requires Vim 9.1.0000+ in $PATH).
+ci:
+	@sh ci.sh
 
 clean:
 	@rm -f /tmp/zen-lint.txt

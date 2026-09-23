@@ -38,8 +38,8 @@ check "plugin loads the implementation with import autoload" \
 check "plugin avoids legacy zen# calls (completion excepted)" \
   "! grep -v '^[[:space:]]*#' plugin/zen.vim | grep -v 'complete=customlist' | grep -q 'zen#'"
 
-check "autoload exposes a typed API" \
-  "grep -q 'export def Execute(bang: bool, dim: string)' autoload/zen.vim"
+check "autoload exposes the Open/Close/Toggle API" \
+  "grep -q 'export def Open(dim: string' autoload/zen.vim && grep -q 'export def Close()' autoload/zen.vim && grep -q 'export def Toggle(dim: string' autoload/zen.vim"
 
 check "help first line follows help-writing" \
   "head -1 doc/zen.txt | grep -qP '^\\*zen\\.txt\\*\tFor Vim version'"
@@ -66,7 +66,7 @@ check "no stale goyo identifiers remain (upstream refs excepted)" \
   "! grep -rn 'goyo_[a-z]\\|goyo#\\|:Goyo\\|<Plug>(goyo\\|GoyoOn\\|GoyoOff' plugin autoload doc test Makefile 2>/dev/null | grep -v 'github.com/junegunn/goyo.vim'"
 
 check "zen namespace is used consistently" \
-  "grep -q 'export def Execute' autoload/zen.vim && grep -q 'complete=customlist,zen#Complete' plugin/zen.vim && grep -q 'zen.Execute' plugin/zen.vim"
+  "grep -q 'complete=customlist,zen#Complete' plugin/zen.vim && grep -q 'zen.Toggle' plugin/zen.vim && grep -q 'zen.Open' plugin/zen.vim && grep -q 'zen.Close' plugin/zen.vim"
 
 check "all source comments are in English" \
   "! grep -rlP '[\x{4e00}-\x{9fff}]' plugin autoload test >/dev/null 2>&1"

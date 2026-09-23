@@ -28,6 +28,26 @@ This project follows the conventions used by Vim's bundled plugins
   'textwidth' of 78.
 - End every script with `# vim: ts=8 sts=2 sw=2 et:`.
 
+## Public API
+
+Only `zen#Open()`, `zen#Close()` and `zen#Toggle()` are part of the supported
+interface.  Keep their signatures stable and document any change in
+`doc/zen.txt` and `doc/zen-internals.txt`.  Other functions in
+`autoload/zen.vim` are implementation details and must not be exported.
+
+## Continuous integration
+
+Every change must pass the local CI entry point, which mirrors the GitHub
+Actions workflow:
+
+```sh
+make ci        # or: sh ci.sh
+```
+
+It runs the conformance checks, the test suite and the benchmarks against the
+Vim in `$PATH`, which must be Vim 9.1.0000 or newer.  Only Vim is supported;
+Neovim is out of scope.
+
 ## Tests
 
 Add a case to `test/test_zen.vim` for every behavioural change.  Tests use

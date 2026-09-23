@@ -356,24 +356,46 @@ enddef
 # ---------------------------------------------------------------------------
 
 # Resize the four pads so the content window gets the requested geometry.
+# Re-entrancy guard: ResizePads() changes window sizes, which can trigger
+# WinResized again.  Ignore those secondary events.
+var resizing = false
+
+# Handler for WinResized (Vim 9.1+).  Unlike VimResized, which only fires when
+# the whole screen changes, this fires when a window in the current tab page
+# is resized, for example by dragging a separator.
+def OnWinResized()
+  if !exists('t:zen_pads')
+    return
+  endif
+  ResizePads()
+enddef
+
 def ResizePads()
-  var dim = t:zen_dim
-  dim.width = Clamp(dim.width, 2, &columns)
-  dim.height = Clamp(dim.height, 2, &lines)
+  if resizing
+    return
+  endif
+  resizing = true
+  try
+    var dim = t:zen_dim
+    dim.width = Clamp(dim.width, 2, &columns)
+    dim.height = Clamp(dim.height, 2, &lines)
 
-  var vmargin = max([0, (&lines - dim.height) / 2 - 1])
-  var yoff = Clamp(dim.yoff, -vmargin, vmargin)
-  var top = vmargin + yoff
-  var bot = vmargin - yoff - 1
-  SetupPad(t:zen_pads.t, false, top)
-  SetupPad(t:zen_pads.b, false, bot)
+    var vmargin = max([0, (&lines - dim.height) / 2 - 1])
+    var yoff = Clamp(dim.yoff, -vmargin, vmargin)
+    var top = vmargin + yoff
+    var bot = vmargin - yoff - 1
+    SetupPad(t:zen_pads.t, false, top)
+    SetupPad(t:zen_pads.b, false, bot)
 
-  var nwidth = max([len(string(line('$'))) + 1, &numberwidth])
-  var width = dim.width + (&number ? nwidth : 0)
-  var hmargin = max([0, (&columns - width) / 2 - 1])
-  var xoff = Clamp(dim.xoff, -hmargin, hmargin)
-  SetupPad(t:zen_pads.l, true, hmargin + xoff)
-  SetupPad(t:zen_pads.r, true, hmargin - xoff)
+    var nwidth = max([len(string(line('$'))) + 1, &numberwidth])
+    var width = dim.width + (&number ? nwidth : 0)
+    var hmargin = max([0, (&columns - width) / 2 - 1])
+    var xoff = Clamp(dim.xoff, -hmargin, hmargin)
+    SetupPad(t:zen_pads.l, true, hmargin + xoff)
+    SetupPad(t:zen_pads.r, true, hmargin - xoff)
+  finally
+    resizing = false
+  endtry
 enddef
 
 # Re-parse the expression and re-apply the geometry (<C-w>=).
@@ -706,6 +728,10 @@ def ZenOn(dim_arg: string)
     autocmd!
     autocmd TabLeave    * ++nested call ZenOff()
     autocmd VimResized  * call ResizePads()
+    # WinResized is new in Vim 9.1 and is more precise than VimResized.
+    if exists('##WinResized')
+      autocmd WinResized * call OnWinResized()
+    endif
     autocmd ColorScheme * call Tranquilize()
     # Only act on this tab; ConfineWindows() pulls stray windows back.
     autocmd BufWinEnter * call OnBufWinEnter()
@@ -837,36 +863,16 @@ enddef
 # ---------------------------------------------------------------------------
 
 # Whether a Zen session is currently active in this tab.
-export def IsActive(): bool
-  return exists('#zen')
-enddef
+# Public API
+# ----------
+# The following three functions are the supported interface for other plugins
+# and for user mappings.  Everything else in this file is an implementation
+# detail and may change without notice.
 
-# Access the pad buffers of the current session ({l,r,t,b} -> bufnr).
-# Returns an empty dict when Zen is not active.
-export def Pads(): dict<number>
-  return get(t:, 'zen_pads', {})
-enddef
-
-# Close the current Zen session.  Safe to call when it is not active.
-export def Close()
-  ZenOff()
-enddef
-
-# Re-apply the current dimensions.
-export def Resize()
-  if IsActive()
-    ResizePads()
-  endif
-enddef
-
-# Main entry point, called by the :Zen command in plugin/zen.vim.
-#   bang: when true, force leaving regardless of state.
-#   dim:  optional dimension expression (see doc/zen.txt).
-export def Execute(bang: bool, dim: string)
-  if bang
-    ZenOff()
-    return
-  endif
+# Open a Zen session.  When one is already active the dimensions are updated
+# instead of rebuilding the layout.  {dim} is an optional dimension
+# expression, see |zen-command|.
+export def Open(dim: string = '')
   if !IsActive()
     ZenOn(dim)
   elseif !empty(dim)
@@ -883,9 +889,32 @@ export def Execute(bang: bool, dim: string)
       t:zen_dim_expr = dim
       ResizePads()
     endif
-  else
-    ZenOff()
   endif
+enddef
+
+# Close the current Zen session.  Safe to call when it is not active.
+export def Close()
+  ZenOff()
+enddef
+
+# Toggle Zen: open it when inactive, close it when active.  {dim} has the same
+# meaning as for Open().
+export def Toggle(dim: string = '')
+  if IsActive()
+    ZenOff()
+  else
+    ZenOn(dim)
+  endif
+enddef
+
+# Whether a Zen session is active in the current tab page.
+def IsActive(): bool
+  return exists('#zen')
+enddef
+
+# The pad buffers of the current session ({l,r,t,b} -> bufnr).
+def Pads(): dict<number>
+  return get(t:, 'zen_pads', {})
 enddef
 
 # Custom completion for :Zen ({ArgLead}, {CmdLine}, {CursorPos}; see

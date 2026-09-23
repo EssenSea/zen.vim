@@ -5,14 +5,27 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Public API reduced to `zen#Open()`, `zen#Close()` and `zen#Toggle()`; other
+  functions are no longer exported.  Documented in `doc/zen.txt` under
+  |zen-api|.
+- `<Plug>(zen-open)`, `<Plug>(zen-close)` and `<Plug>(zen-toggle)`; the
+  previous `<Plug>(zen-off)` is kept as an alias of close.
+- `:Zen` now toggles, `:Zen {dim}` opens and `:Zen!` closes.
+- GitHub Actions workflow (`.github/workflows/ci.yml`) and a local `ci.sh` /
+  `make ci`, testing Vim 9.1.0000 and later only.
+- Use Vim 9.1's |WinResized| event, with a re-entrancy guard, so dragging a
+  window separator re-lays out the layout.
+
 ### Changed
 
 - **Renamed everything from goyo to zen.**  The command is now `:Zen`, the
   script is `plugin/zen.vim` / `autoload/zen.vim`, the user events are
-  `ZenEnter` / `ZenLeave`, the options are `g:zen_*`, the `<Plug>` mappings
-  are `<Plug>(zen-off)` / `<Plug>(zen-resize)` and the autoload functions are
-  `zen#Execute()` etc.  There are no compatibility aliases, so update any
-  mappings and options accordingly.
+  `ZenEnter` / `ZenLeave`, the options are `g:zen_*`, the autoload functions
+  are `zen#Open()` / `zen#Close()` / `zen#Toggle()`, and the mappings are
+  `<Plug>(zen-open)` / `<Plug>(zen-close)` / `<Plug>(zen-toggle)`.  There are
+  no goyo compatibility aliases, so update any mappings and options.
 - Reorganised the project as a standard Vim package, following
   `:help package-create` and the layout used by Vim's bundled plugins.
 - `plugin/zen.vim` is now Vim9script and loads the implementation with

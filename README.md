@@ -52,6 +52,28 @@ packadd zen
 
 See `:help zen` for the full manual.
 
+## Public API
+
+For other plugins and scripts only three functions are supported:
+
+```vim
+zen#Open()        " open (or update the dimensions of an active session)
+zen#Close()       " close the current session
+zen#Toggle()      " toggle
+```
+
+In Vim9script they are also reachable through the imported namespace:
+
+```vim
+import autoload 'zen.vim'
+zen.Toggle()
+```
+
+The `:Zen` command and the `<Plug>` mappings (`<Plug>(zen-open)`,
+`<Plug>(zen-close)`, `<Plug>(zen-toggle)`, `<Plug>(zen-off)`) are thin
+wrappers around these functions.  Everything else in `autoload/zen.vim` is an
+implementation detail.
+
 ## Layout
 
 ```
@@ -65,15 +87,17 @@ test/test_zen.vim        test suite
 test/conformance.sh      package-convention checks
 test/run.sh              test runner
 test/bench.sh            micro-benchmark runner
+ci.sh                    local CI entry point
+.github/workflows/ci.yml GitHub Actions workflow
 Makefile                 common tasks
 ```
 
 ## Development
 
 ```sh
-make test        # run the suite with Vim
-make test-nvim   # run with Neovim (skipped if it lacks Vim9script)
+make ci          # run the same checks as CI locally
 make check       # lint + conformance + tests
+make test        # run the test suite
 make bench       # micro-benchmarks (median/min/max per operation)
 make tags        # regenerate doc/tags
 make lint        # load the plugin to catch compile errors

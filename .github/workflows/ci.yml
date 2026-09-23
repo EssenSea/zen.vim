@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+
+jobs:
+  test:
+    name: Vim ${{ matrix.vim }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Only Vim 9.1 and newer are supported (Vim9script features used here,
+        # e.g. import autoload and WinResized, start with 9.1.0000).
+        vim: [ 'v9.1.0000', 'v9.1.1000', 'v9.1.2000', 'master' ]
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git gettext libncurses-dev
+
+      - name: Build Vim ${{ matrix.vim }}
+        run: |
+          git clone --depth 1 --branch "${{ matrix.vim }}" https://github.com/vim/vim.git /tmp/vim
+          cd /tmp/vim
+          ./configure --with-features=huge \
+            --enable-multibyte \
+            --enable-terminal \
+            --disable-gui \
+            --without-x
+          make -j"$(nproc)"
+          sudo make install
+
+      - name: Show Vim version
+        run: vim --version | head -5
+
+      - name: Run conformance checks
+        run: make conformance
+
+      - name: Run test suite
+        run: make test-vim
+
+      - name: Run lint
+        run: make lint
+
+      - name: Run benchmarks (informational)
+        run: make bench

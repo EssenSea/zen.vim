@@ -35,24 +35,24 @@ def Stat(name: string, reps: number, rounds: number, Fn: func)
 enddef
 
 def OnOff()
-  zen#Execute(false, '80x20')
-  zen#Execute(true, '')
+  zen#Open('80x20')
+  zen#Close()
 enddef
 
 try
 Stat('ZenOn + ZenOff', 20, 11, OnOff)
 
-zen#Execute(false, '80x20')
-Stat('Resize (active session)', 100, 11, () => zen#Resize())
-zen#Execute(true, '')
+zen#Open('80x20')
+Stat('Re-layout (active session)', 100, 11, () => zen#Open('80x20'))
+zen#Close()
 
 # Open a full-width window while Zen is active; ConfineWindows() has to
 # pull it back into the content column.  A one-line scratch buffer is used so
 # the benchmark does not depend on the size of the help files.
 def WithStray()
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   topleft new
-  zen#Execute(true, '')
+  zen#Close()
   silent! only!
   silent! enew!
   setlocal nomodified

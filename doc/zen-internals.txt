@@ -1,94 +1,106 @@
 *zen-internals.txt*	For Vim version 9.1.	Last change: 2026 Sep 23
 
 
-  VIM REFERENCE MANUAL  by zen.vim contributors
+		VIM REFERENCE MANUAL		by zen.vim contributors
 
-zen.vim implementation notes*zen-internals*
+zen.vim implementation notes	*zen-internals*
 ==============================================================================
 
 This file documents which Vim built-in mechanisms the implementation uses and
 why.  It is aimed at people maintaining zen.vim.  See |zen| for the user
-documentation.
+documentation.  Only Vim 9.1.0000 and newer is supported.
 
 1. Section overview	*zen-internals-contents*
 
-1. Section overview	|zen-internals-contents|
-2. Windows and tabs	|zen-internals-windows|
-3. Options	|zen-internals-options|
-4. Highlighting	|zen-internals-highlight|
-5. Mappings	|zen-internals-mappings|
-6. Autocommands and events	|zen-internals-autocmds|
-7. Deferred actions	|zen-internals-timers|
-8. Messages	|zen-internals-messages|
+	1. Section overview		|zen-internals-contents|
+	2. Windows and tabs		|zen-internals-windows|
+	3. Options			|zen-internals-options|
+	4. Highlighting		|zen-internals-highlight|
+	5. Mappings			|zen-internals-mappings|
+	6. Autocommands and events	|zen-internals-autocmds|
+	7. Window resize events		|zen-internals-resize|
+	8. Deferred actions		|zen-internals-timers|
+	9. Messages			|zen-internals-messages|
 
 ==============================================================================
 2. Windows and tabs	*zen-internals-windows*
 
 Window information ~
-|getwininfo()| returns a List of Dictionaries, one per window, with
-the buffer number, geometry and |window-ID|.  It is used instead of
-repeated |winbufnr()|, |win_screenpos()| and |winwidth()| calls when
-scanning the windows of the current tab:
-  * |zen-internals-windows| / ConfineWindows()
-  * ZenOff() when collecting the content-window layout.
+	|getwininfo()| returns a List of Dictionaries, one per window, with
+	the buffer number, geometry and |window-ID|.  It is used instead of
+	repeated |winbufnr()|, |win_screenpos()| and |winwidth()| calls when
+	scanning the windows of the current tab:
+		* ConfineWindows()
+		* ZenOff() when collecting the content-window layout.
 
 Window identity ~
-A window's |window-ID| is stable while the window exists, so it is
-used to remember the master window (t:zen_winid) and the window Zen
-started from (t:zen_orig_winid).
+	A window's |window-ID| is stable while the window exists, so it is
+	used to remember the master window (t:zen_winid) and the window Zen
+	started from (t:zen_orig_winid).
 
-|win_id2win()| only searches the current tab page; |win_gotoid()| can
-also change the current tab page.  ZenOff() therefore calls
-|win_gotoid()| directly when returning to the original window.
+	|win_id2win()| only searches the current tab page; |win_gotoid()| can
+	also change the current tab page.  ZenOff() therefore calls
+	|win_gotoid()| directly when returning to the original window.
 
 Layout ~
-The pads are ordinary windows created with |:topleft| / |:botright|
-`:new` and resized with |:resize| (|:vertical| for the side pads).
-Window-local flags |winfixwidth| / |winfixheight| keep them in place.
+	The pads are ordinary windows created with |:topleft| / |:botright|
+	`:new` and resized with |win_execute()| and `resize` / `vertical
+	resize`.  Window-local flags |winfixwidth| / |winfixheight| keep them
+	in place.  Resizing never leaves the current window, so no spurious
+	WinEnter / WinLeave autocommands are triggered.
 
 ==============================================================================
-3. Options	*zen-internals-options*
+3. Options			*zen-internals-options*
 
 Saving and restoring ~
-The global options changed while Zen is active are copied into a
-Dictionary by SaveOptions() and restored by RestoreOptions().  Each
-option is read and written with the &option syntax rather than
-through |:set| strings, so no escaping is needed and Vim9script type
-checking applies.
+	The global options changed while Zen is active are copied into a
+	Dictionary by SaveOptions() and restored by RestoreOptions().  Each
+	option is read and written with the &option syntax rather than
+	through |:set| strings, so no escaping is needed and Vim9script type
+	checking applies.
 
-'winwidth' must not be smaller than 'winminwidth', and likewise for
-the heights.  RestoreOptions() therefore enlarges the current values,
-sets the minimum, then sets the target value; this avoids E591/E592.
+	'winwidth' must not be smaller than 'winminwidth', and likewise for
+	the heights.  RestoreOptions() therefore enlarges the current values,
+	sets the minimum, then sets the target value; this avoids E591/E592.
 
-The window sizes are forced to 1 so that the pads alone decide the geometry.
+	The window sizes are forced to 1 so that the pads alone decide the
+	geometry.
 
 ==============================================================================
-4. Highlighting	*zen-internals-highlight*
+4. Highlighting		*zen-internals-highlight*
 
 Reading ~
-GroupBg() reads the background colour of a group with |hlget()| using
-the resolve flag, which follows `:highlight-link` chains.  The GUI
-colour is preferred when 'termguicolors' is set or the GUI is running,
-otherwise the cterm colour is used.
+	GroupBg() reads the background colour of a group with |hlget()| using
+	the resolve flag, which follows `:highlight-link` chains.  The GUI
+	colour is preferred when 'termguicolors' is set or the GUI is
+	running, otherwise the cterm colour is used.
 
 Writing ~
-SetGroupColors() modifies several groups at once with a single
-|hlset()| call.  An empty `cterm` / `gui` Dictionary clears the
-attribute flags, matching the original `:highlight Group ... gui=NONE`
-behaviour.
+	SetGroupColors() modifies several groups at once with a single
+	|hlset()| call.  An empty `cterm` / `gui` Dictionary clears the
+	attribute flags, matching the original `:highlight Group ... gui=NONE`
+	behaviour.
 
-No string-based `:highlight` command is built, so group names cannot
-be misparsed.
+	Restoring ~
+	SaveHighlights() snapshots the affected groups with |hlget()| before
+	Tranquilize() changes them, and RestoreHighlights() applies the
+	snapshot with |hlset()| on exit.  Each group is first cleared with
+	`cleared: true` because hlset() merges attributes and would otherwise
+	leave attributes added by Zen behind.  This replaces reloading the
+	whole color scheme, which was the single most expensive step on exit.
+
+	No string-based `:highlight` command is built, so group names cannot
+	be misparsed.
 
 ==============================================================================
-5. Mappings	*zen-internals-mappings*
+5. Mappings			*zen-internals-mappings*
 
 Each temporary `<C-w>` mapping is only installed when |maparg()| reports
 that the key is free, so user mappings are never clobbered.  The keys that
 were installed are remembered in t:zen_maps and removed with |:nunmap| on
 exit.
 
-The <Plug> mappings live in plugin/zen.vim and invoke the exported API with
+The <Plug> mappings live in plugin/zen.vim and invoke the public API with
 |<ScriptCmd>|.  The :Zen completion function is referenced as
 `zen#Complete` because |:command-completion-customlist| only accepts the
 legacy autoload name, not the imported namespace.
@@ -97,29 +109,45 @@ legacy autoload name, not the imported namespace.
 6. Autocommands and events	*zen-internals-autocmds*
 
 All autocommands are placed in the `zen` and `zen_pad` |autocmd-groups|.
-The groups are emptied and removed in ZenOff(); |exists()| on the group name
-is used as the session flag.
+The groups are emptied and removed in ZenOff(); |exists()| on the group
+name is used as the session flag.
 
-The pad autocommands use the `<buffer=N>` form so that they only fire for the
-pad buffers, and they are installed once (after the first ResizePads() call),
-not on every resize.
+The pad autocommands use the `<buffer=N>` form so that they only fire for
+the pad buffers, and they are installed once (after the first ResizePads()
+call), not on every resize.
 
-`User` events |ZenEnter| and |ZenLeave| are fired with |:doautocmd| so other
-plugins can hook into the session.
-
-==============================================================================
-7. Deferred actions	*zen-internals-timers*
-
-Closing the session from inside a CursorMoved/WinEnter autocommand is unsafe
-because windows may not be changed there.  Blank() therefore schedules the
-close with |timer_start()| at zero delay, which runs the callback when Vim is
-back in the main loop.  This does not depend on the user's mappings, unlike
-feeding a <Plug> key.
+`User` events |ZenEnter| and |ZenLeave| are fired with |:doautocmd| so
+other plugins can hook into the session.
 
 ==============================================================================
-8. Messages	*zen-internals-messages*
+7. Window resize events		*zen-internals-resize*
+
+Vim 9.1 added the |WinResized| event, which fires when a window in the
+current tab page changes size, for example when the user drags a separator.
+It is more precise than |VimResized|, which only fires when the whole
+screen changes.  Both are used:
+
+	VimResized	re-layout when the screen is resized
+	WinResized	re-layout when a window is resized interactively
+
+WinResized may fire again as a result of our own resizing, so ResizePads()
+carries a re-entrancy guard (the script-local `resizing` variable) and
+returns immediately when it is already running.
+
+==============================================================================
+8. Deferred actions		*zen-internals-timers*
+
+Closing the session from inside a CursorMoved/WinEnter autocommand is
+unsafe because windows may not be changed there.  Blank() therefore
+schedules the close with |timer_start()| at zero delay, which runs the
+callback when Vim is back in the main loop.  This does not depend on the
+user's mappings, unlike feeding a <Plug> key.
+
+==============================================================================
+9. Messages			*zen-internals-messages*
 
 User-visible text is passed through |gettext()|; the domain is bound with
-|bindtextdomain()| to the package `lang/` directory.  See |zen-translation|.
+|bindtextdomain()| to the package `lang/` directory.  See
+|zen-translation|.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

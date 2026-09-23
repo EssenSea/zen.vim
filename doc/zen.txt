@@ -134,15 +134,18 @@ autocmd User ZenLeave call MyLeaveZen()
 ==============================================================================
 6. Mappings	*zen-mappings*
 
-The plugin sets no global key mappings by itself.  It provides two <Plug>
+The plugin sets no global key mappings by itself.  It provides <Plug>
 mappings that users may bind: >
 
-<Plug>(zen-off)	leave Zen
-<Plug>(zen-resize)	re-apply the current dimensions
+<Plug>(zen-open)	open a Zen session
+<Plug>(zen-close)	close the current session
+<Plug>(zen-toggle)	toggle Zen
+<Plug>(zen-off)		alias of <Plug>(zen-close)
 <
 Example: >vim
 
-nmap <Leader>z <Plug>(zen-off)
+nmap <Leader>z <Plug>(zen-toggle)
+nmap <Leader>Z <Plug>(zen-close)
 <
 While Zen is active the following local mappings are installed, unless the
 key is already mapped; they are removed again on leaving:
@@ -168,7 +171,40 @@ restored afterwards: vim-airline, lightline.vim, vim-powerline,
 vim-gitgutter and vim-signify.
 
 ==============================================================================
-8. Translation	*zen-translation*
+==============================================================================
+8. Public API						*zen-api*
+
+Other plugins and user scripts can drive Zen through the following
+three functions.  They are the only supported entry points; everything
+else in autoload/zen.vim is an implementation detail and may change
+between releases.
+
+							*zen#Open()*
+zen#Open([{dim}])
+		Open a Zen session.  When one is already active the dimensions
+		are updated instead of rebuilding the window layout.  {dim} is
+		an optional dimension expression, see |zen-command|.
+
+							*zen#Close()*
+zen#Close()
+		Close the current session.  Safe to call when Zen is not
+		active.
+
+							*zen#Toggle()*
+zen#Toggle([{dim}])
+		Open Zen when it is not active, close it when it is.  {dim}
+		has the same meaning as for |zen#Open()|.
+
+In Vim9script these are available through the imported namespace or
+through their autoload names: >
+
+	import autoload 'zen.vim'
+	zen.Toggle()
+	zen#Open('80x20')
+<
+The |:Zen| command and the |zen-mappings| are thin wrappers around
+these functions.
+
 
 Messages can be translated using |gettext()|.  The package identifier is
 "zen" and the catalogues live under |zen-installation| as: >
@@ -179,7 +215,7 @@ The template is `lang/zen.pot`.  See |package-translation| for how to create
 the `.po` and `.mo` files.
 
 ==============================================================================
-9. Development	*zen-development*
+10. Development						*zen-development*
 
 The source is organised as a Vim package: >
 	plugin/zen.vim		loads the plugin, defines :Zen

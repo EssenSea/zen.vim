@@ -32,8 +32,8 @@ enddef
 
 # Discard scratch state so tests do not leak modified buffers or windows.
 def ResetScratch()
-  if zen#IsActive()
-    zen#Execute(true, '')
+  if ZenActive()
+    zen#Close()
   endif
   silent! only!
   silent! tabonly!
@@ -63,6 +63,15 @@ const RTP_SAVE = &runtimepath
 const COLUMNS_SAVE = &columns
 const LINES_SAVE = &lines
 
+# State helpers built on the public API only.
+def ZenActive(): bool
+  return exists('#zen')
+enddef
+
+def ZenPads(): dict<number>
+  return get(t:, 'zen_pads', {})
+enddef
+
 def Setup()
   set nocompatible
   set nomore noswapfile nobackup nowritebackup
@@ -71,14 +80,14 @@ def Setup()
   if !exists(':Zen')
     runtime plugin/zen.vim
   endif
-  if zen#IsActive()
-    zen#Execute(true, '')
+  if ZenActive()
+    zen#Close()
   endif
 enddef
 
 def Teardown()
-  if zen#IsActive()
-    zen#Execute(true, '')
+  if ZenActive()
+    zen#Close()
   endif
 enddef
 
@@ -100,12 +109,19 @@ Test('plugin defines :Zen command', () => {
   assert_equal(2, exists(':Zen'))
 })
 
-Test('zen#Execute is an autoload function', () => {
-  assert_true(exists('*zen#Execute') > 0)
+Test('public API Open/Close/Toggle are exported', () => {
+  assert_true(exists('*zen#Open') > 0)
+  assert_true(exists('*zen#Close') > 0)
+  assert_true(exists('*zen#Toggle') > 0)
 })
 
-Test('zen#IsActive is exported', () => {
-  assert_true(exists('*zen#IsActive') > 0)
+Test('only Open/Close/Toggle (and Complete) are exported', () => {
+  # zen#Execute/zen#IsActive/zen#Pads/zen#Resize are implementation details.
+  assert_equal(0, exists('*zen#Execute'))
+  assert_equal(0, exists('*zen#IsActive'))
+  assert_equal(0, exists('*zen#Pads'))
+  assert_equal(0, exists('*zen#Resize'))
+  assert_true(exists('*zen#Complete') > 0)
 })
 
 # ---------------------------------------------------------------------------
@@ -114,59 +130,59 @@ Test('zen#IsActive is exported', () => {
 Test('default dimensions use g:zen_width (80)', () => {
   g:zen_width = 80
   g:zen_height = '85%'
-  zen#Execute(false, '')
-  assert_true(zen#IsActive())
+  zen#Toggle()
+  assert_true(ZenActive())
   var dim = t:zen_dim
   assert_equal(80, dim.width)
   assert_equal(24 * 85 / 100, dim.height)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 Test('percentage expression 100%x50%', () => {
-  zen#Execute(false, '100%x50%')
+  zen#Open('100%x50%')
   var dim = t:zen_dim
   assert_equal(80, dim.width)
   assert_equal(12, dim.height)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 Test('offset expression 120x20', () => {
-  zen#Execute(false, '120x20')
+  zen#Open('120x20')
   var dim = t:zen_dim
   assert_equal(120, dim.width)
   assert_equal(20, dim.height)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 Test('invalid expression is rejected (not active)', () => {
-  zen#Execute(false, 'definitely-not-a-size')
-  assert_false(zen#IsActive())
+  zen#Open('definitely-not-a-size')
+  assert_false(ZenActive())
 })
 
 # ---------------------------------------------------------------------------
 # 3. Session activation / deactivation
 # ---------------------------------------------------------------------------
 Test('activating creates 5 windows (master + 4 pads)', () => {
-  zen#Execute(false, '80x20')
-  assert_true(zen#IsActive())
+  zen#Open('80x20')
+  assert_true(ZenActive())
   assert_equal(5, winnr('$'))
   assert_equal(4, len(t:zen_pads))
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 Test('deactivating removes augroup and pads', () => {
-  zen#Execute(false, '80x20')
-  zen#Execute(true, '')
-  assert_false(zen#IsActive())
+  zen#Open('80x20')
+  zen#Close()
+  assert_false(ZenActive())
   assert_equal(1, winnr('$'))
   assert_equal(1, tabpagenr('$'))
 })
 
 Test('toggle: :Zen then :Zen leaves', () => {
-  zen#Execute(false, '80x20')
-  assert_true(zen#IsActive())
-  zen#Execute(false, '')
-  assert_false(zen#IsActive())
+  zen#Open('80x20')
+  assert_true(ZenActive())
+  zen#Toggle()
+  assert_false(ZenActive())
 })
 
 # ---------------------------------------------------------------------------
@@ -177,12 +193,12 @@ Test('global options are restored on leave', () => {
   set showtabline=2
   set ruler
   set sidescroll=5
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   assert_equal(0, &laststatus)
   assert_equal(0, &showtabline)
   assert_false(&ruler)
   assert_equal(1, &sidescroll)
-  zen#Execute(true, '')
+  zen#Close()
   assert_equal(2, &laststatus)
   assert_equal(2, &showtabline)
   assert_true(&ruler)
@@ -197,10 +213,10 @@ Test('winwidth/winheight restored in correct order', () => {
   const save_wh = &winheight
   const save_wmh = &winminheight
   set winminwidth=2 winminheight=1
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   assert_equal(1, &winminwidth)
   assert_equal(1, &winwidth)
-  zen#Execute(true, '')
+  zen#Close()
   assert_equal(2, &winminwidth)
   assert_equal(save_ww, &winwidth)
   assert_equal(save_wmh, &winminheight)
@@ -215,9 +231,9 @@ Test('fillchars and guioptions-like string options are restored', () => {
   var saved = &fillchars
   set fillchars=vert:\ ,stl:\ ,stlnc:\ 
   var during_on = ''
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   during_on = &fillchars
-  zen#Execute(true, '')
+  zen#Close()
   assert_equal(saved, &fillchars)
   assert_true(during_on =~ 'stl:')
 })
@@ -230,8 +246,8 @@ Test('highlight groups are restored exactly on leave', () => {
   execute 'highlight StatusLineNC guifg=Grey gui=italic cterm=underline'
   var before_sl = hlget('StatusLine', true)
   var before_slnc = hlget('StatusLineNC', true)
-  zen#Execute(false, '80x20')
-  zen#Execute(true, '')
+  zen#Open('80x20')
+  zen#Close()
   assert_equal(before_sl, hlget('StatusLine', true))
   assert_equal(before_slnc, hlget('StatusLineNC', true))
 })
@@ -239,8 +255,8 @@ Test('highlight groups are restored exactly on leave', () => {
 Test('highlight attribute added by Zen is removed again', () => {
   execute 'highlight ColorColumn guibg=LightRed'
   var before = hlget('ColorColumn', true)
-  zen#Execute(false, '80x20')
-  zen#Execute(true, '')
+  zen#Open('80x20')
+  zen#Close()
   assert_equal(before, hlget('ColorColumn', true))
 })
 
@@ -251,11 +267,11 @@ Test(':edit another file during Zen survives exit', () => {
   var tmp = tempname()
   writefile(['hello'], tmp)
   execute 'edit ' .. tmp
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   var tmp2 = tempname()
   writefile(['world'], tmp2)
   execute 'edit ' .. tmp2
-  zen#Execute(true, '')
+  zen#Close()
   assert_equal(tmp2, bufname('%'))
   silent! execute 'bwipeout! ' .. tmp
   silent! execute 'bwipeout! ' .. tmp2
@@ -268,9 +284,9 @@ Test('leaving Zen returns to the original tab and window', () => {
   wincmd l
   var orig_winid = win_getid()
   var orig_tab = tabpagenr()
-  zen#Execute(false, '80x20')
-  assert_true(zen#IsActive())
-  zen#Execute(true, '')
+  zen#Open('80x20')
+  assert_true(ZenActive())
+  zen#Close()
   assert_equal(orig_tab, tabpagenr())
   assert_equal(orig_winid, win_getid())
   assert_equal(2, tabpagenr('$'))
@@ -280,7 +296,7 @@ Test('leaving Zen returns to the original tab and window', () => {
 # 6. Confining content windows (ConfineWindows)
 # ---------------------------------------------------------------------------
 Test('help window stays within content column', () => {
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   help
   # Locate the help window.
   var helpwin = 0
@@ -292,61 +308,61 @@ Test('help window stays within content column', () => {
   assert_true(helpwin > 0)
   # The help window must not span the whole screen.
   assert_true(winwidth(helpwin) < &columns)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 # ---------------------------------------------------------------------------
 # 7. Robustness: repeated calls and invalid input
 # ---------------------------------------------------------------------------
 Test('idempotent force-off when not active', () => {
-  zen#Execute(true, '')
-  zen#Execute(true, '')
-  assert_false(zen#IsActive())
+  zen#Close()
+  zen#Close()
+  assert_false(ZenActive())
 })
 
 Test('resizing an active session', () => {
-  zen#Execute(false, '80x20')
-  zen#Execute(false, '60x10')
+  zen#Open('80x20')
+  zen#Open('60x10')
   var dim = t:zen_dim
   assert_equal(60, dim.width)
   assert_equal(10, dim.height)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 # ---------------------------------------------------------------------------
 # 8. Geometry bounds and parsing robustness
 # ---------------------------------------------------------------------------
 Test('oversized dimensions are clamped to screen', () => {
-  zen#Execute(false, '9999x9999')
+  zen#Open('9999x9999')
   var dim = t:zen_dim
   assert_true(dim.width <= &columns)
   assert_true(dim.height <= &lines)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 Test('negative offset expression parses', () => {
-  zen#Execute(false, '80-10x20+2')
+  zen#Open('80-10x20+2')
   var dim = t:zen_dim
   assert_equal(70, dim.width)
   assert_equal(22, dim.height)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 Test('percent offset expression parses', () => {
-  zen#Execute(false, '50%+5x50%-2')
+  zen#Open('50%+5x50%-2')
   var dim = t:zen_dim
   assert_equal(40 + 5, dim.width)
   assert_equal(12 - 2, dim.height)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 Test('empty dimension uses configured defaults', () => {
   g:zen_width = 100
   g:zen_height = '50%'
-  zen#Execute(false, '')
+  zen#Toggle()
   assert_equal(100, t:zen_dim.width)
   assert_equal(12, t:zen_dim.height)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 # ---------------------------------------------------------------------------
@@ -358,18 +374,18 @@ Test('g:zen_callbacks fire on enter and leave', () => {
     () => calls->add('enter'),
     () => calls->add('leave'),
   ]
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   assert_equal(['enter'], calls)
-  zen#Execute(true, '')
+  zen#Close()
   assert_equal(['enter', 'leave'], calls)
   unlet g:zen_callbacks
 })
 
 Test('invalid g:zen_callbacks entries are ignored', () => {
   g:zen_callbacks = ['not-a-funcref', 42]
-  zen#Execute(false, '80x20')
-  assert_true(zen#IsActive())
-  zen#Execute(true, '')
+  zen#Open('80x20')
+  assert_true(ZenActive())
+  zen#Close()
   unlet g:zen_callbacks
 })
 
@@ -381,8 +397,8 @@ Test('User ZenEnter/ZenLeave autocmds fire', () => {
     autocmd User ZenLeave call add(g:test_evt, 'leave')
   augroup END
   g:test_evt = []
-  zen#Execute(false, '80x20')
-  zen#Execute(true, '')
+  zen#Open('80x20')
+  zen#Close()
   augroup zen_test_events
     autocmd!
   augroup END
@@ -397,11 +413,11 @@ Test('User ZenEnter/ZenLeave autocmds fire', () => {
 Test('g:zen_linenr=1 keeps numbers', () => {
   set number
   g:zen_linenr = 1
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   # The content window keeps 'number'.
   execute ':' .. win_id2win(t:zen_winid) .. 'wincmd w'
   assert_true(&number)
-  zen#Execute(true, '')
+  zen#Close()
   unlet g:zen_linenr
   set nonumber
 })
@@ -409,10 +425,10 @@ Test('g:zen_linenr=1 keeps numbers', () => {
 Test('default hides numbers in content window', () => {
   set number
   unlet! g:zen_linenr
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   execute ':' .. win_id2win(t:zen_winid) .. 'wincmd w'
   assert_false(&number)
-  zen#Execute(true, '')
+  zen#Close()
   set nonumber
 })
 
@@ -422,10 +438,10 @@ Test('default hides numbers in content window', () => {
 Test('temporary <C-w> mappings are installed and removed', () => {
   var before = maparg('<C-w>', 'n')
   var before_lt = maparg('<C-w><lt>', 'n')
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   assert_false(empty(maparg('<C-w>R', 'n')))
   assert_false(empty(maparg('<C-w>=', 'n')))
-  zen#Execute(true, '')
+  zen#Close()
   assert_true(empty(maparg('<C-w>R', 'n')))
   assert_true(empty(maparg('<C-w>=', 'n')))
 })
@@ -437,13 +453,13 @@ Test('normal vsplit inside content column is preserved', () => {
   var tmp = tempname()
   writefile(['a'], tmp)
   execute 'edit ' .. tmp
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   var tmp2 = tempname()
   writefile(['b'], tmp2)
   execute 'vsplit ' .. tmp2
   # master + new split + 4 pads = 6
   assert_equal(6, winnr('$'))
-  zen#Execute(true, '')
+  zen#Close()
   # Both content windows survive leaving Zen.
   assert_equal(2, winnr('$'))
   silent! execute 'bwipeout! ' .. tmp
@@ -451,7 +467,7 @@ Test('normal vsplit inside content column is preserved', () => {
 })
 
 Test('ConfineWindows brings full-width window back into content column', () => {
-  zen#Execute(false, '80x20')
+  zen#Open('80x20')
   # Directly open a full-width window.
   topleft new
   # ConfineWindows() should be driven by the autocommand; give it a chance
@@ -465,59 +481,62 @@ Test('ConfineWindows brings full-width window back into content column', () => {
   endfor
   # Apart from the top/bottom pads, no window should span the screen.
   assert_true(outside <= 2)
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 # ---------------------------------------------------------------------------
 # 13. Plugin layer and namespace API (import autoload)
 # ---------------------------------------------------------------------------
 Test('plugin defines <Plug> mappings', () => {
+  assert_false(empty(maparg('<Plug>(zen-open)', 'n')))
+  assert_false(empty(maparg('<Plug>(zen-close)', 'n')))
+  assert_false(empty(maparg('<Plug>(zen-toggle)', 'n')))
   assert_false(empty(maparg('<Plug>(zen-off)', 'n')))
-  assert_false(empty(maparg('<Plug>(zen-resize)', 'n')))
 })
 
 Test('plugin does not clobber user <C-w> mappings by default', () => {
   # The plugin must not set <C-w> mappings at load time.
-  zen#Execute(true, '')
+  zen#Close()
   # Just check that nothing is left behind.
-  assert_true(empty(maparg('<C-w>R', 'n')) || !zen#IsActive())
+  assert_true(empty(maparg('<C-w>R', 'n')) || !ZenActive())
 })
 
-Test('zen#IsActive / zen#Pads compatibility names exist', () => {
-  assert_true(exists('*zen#IsActive') > 0)
-  assert_true(exists('*zen#Pads') > 0)
-  assert_true(exists('*zen#Close') > 0)
-  assert_true(exists('*zen#Resize') > 0)
-  assert_true(exists('*zen#Complete') > 0)
+Test('zen#Toggle opens then closes', () => {
+  zen#Toggle()
+  assert_true(ZenActive())
+  zen#Toggle()
+  assert_false(ZenActive())
 })
 
-Test('zen#Pads returns empty when inactive', () => {
-  zen#Execute(true, '')
-  assert_equal({}, zen#Pads())
+Test('ZenPads returns empty when inactive', () => {
+  zen#Close()
+  assert_equal({}, ZenPads())
 })
 
-Test('zen#Pads returns four pads when active', () => {
-  zen#Execute(false, '80x20')
-  var pads = zen#Pads()
+Test('ZenPads returns four pads when active', () => {
+  zen#Open('80x20')
+  var pads = ZenPads()
   assert_equal(4, len(pads))
   for k in ['l', 'r', 't', 'b']
     assert_true(has_key(pads, k))
     assert_true(bufexists(pads[k]))
   endfor
-  zen#Execute(true, '')
+  zen#Close()
 })
 
 Test('zen#Close closes an active session', () => {
-  zen#Execute(false, '80x20')
-  assert_true(zen#IsActive())
+  zen#Open('80x20')
+  assert_true(ZenActive())
   zen#Close()
-  assert_false(zen#IsActive())
+  assert_false(ZenActive())
 })
 
-Test('zen#Resize is a no-op when inactive', () => {
-  zen#Execute(true, '')
-  zen#Resize()
-  assert_false(zen#IsActive())
+Test('<Plug>(zen-toggle) opens and closes', () => {
+  zen#Close()
+  execute "normal \<Plug>(zen-toggle)"
+  assert_true(ZenActive())
+  execute "normal \<Plug>(zen-toggle)"
+  assert_false(ZenActive())
 })
 
 Test('zen#Complete returns candidates and is well formed', () => {
@@ -528,18 +547,20 @@ Test('zen#Complete returns candidates and is well formed', () => {
 })
 
 Test('<Plug>(zen-off) leaves Zen', () => {
-  zen#Execute(false, '80x20')
-  assert_true(zen#IsActive())
+  zen#Open('80x20')
+  assert_true(ZenActive())
   execute "normal \<Plug>(zen-off)"
-  assert_false(zen#IsActive())
+  assert_false(ZenActive())
 })
 
-Test('<Plug>(zen-resize) re-applies dimensions', () => {
-  zen#Execute(false, '80x20')
-  var before = get(t:, 'zen_dim', {})
-  execute "normal \<Plug>(zen-resize)"
-  assert_equal(before, get(t:, 'zen_dim', {}))
-  zen#Execute(true, '')
+Test('<Plug>(zen-open) and <Plug>(zen-close) work', () => {
+  zen#Close()
+  execute "normal \<Plug>(zen-open)"
+  assert_true(ZenActive())
+  var pads = ZenPads()
+  assert_equal(4, len(pads))
+  execute "normal \<Plug>(zen-close)"
+  assert_false(ZenActive())
 })
 
 # ---------------------------------------------------------------------------
