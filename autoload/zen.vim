@@ -553,7 +553,8 @@ enddef
 def ParseArg(arg: string): dict<number>
   var height: number
   var yoff: number
-  if exists('g:zen_height') || (!exists('g:zen_margin_top') && !exists('g:zen_margin_bottom'))
+  if exists('g:zen_height')
+      || (!exists('g:zen_margin_top') && !exists('g:zen_margin_bottom'))
     height = Relsz(get(g:, 'zen_height', '85%'), &lines)
     yoff = 0
   else
@@ -1396,12 +1397,11 @@ enddef
 # Public API (imported by plugin/zen.vim as `zen`)
 # ---------------------------------------------------------------------------
 
-# Whether a Zen session is currently active in this tab.
 # Public API
 # ----------
-# The following three functions are the supported interface for other plugins
-# and for user mappings.  Everything else in this file is an implementation
-# detail and may change without notice.
+# Open/Close/Toggle are the supported interface for other plugins and for
+# user mappings.  Everything else in this file is an implementation detail
+# and may change without notice.
 
 # Open a Zen session.  When one is already active the dimensions are updated
 # instead of rebuilding the layout.  {dim} is an optional dimension
@@ -1448,7 +1448,8 @@ enddef
 
 # Custom completion for :Zen ({ArgLead}, {CmdLine}, {CursorPos}; see
 # :help command-completion-customlist).
-export def Complete(arglead: string, cmdline: string, _cursorpos: number): list<string>
+export def Complete(arglead: string, cmdline: string,
+    _cursorpos: number): list<string>
   if cmdline =~ '\s\S*$'
     return ['80', '100', '120', '50%', '60%', '80x24', '50%x70%', '120x30']
   endif
