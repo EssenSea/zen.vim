@@ -40,6 +40,7 @@ zen-llm	zen.txt	/*zen-llm*
 zen-mappings	zen.txt	/*zen-mappings*
 zen-notes	zen.txt	/*zen-notes*
 zen-options	zen.txt	/*zen-options*
+zen-pads	zen.txt	/*zen-pads*
 zen-requirements	zen.txt	/*zen-requirements*
 zen-translation	zen.txt	/*zen-translation*
 zen.txt	zen.txt	/*zen.txt*

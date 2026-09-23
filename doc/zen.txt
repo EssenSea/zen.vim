@@ -179,6 +179,17 @@ key is already mapped; they are removed again on leaving:
 ==============================================================================
 7. Notes	*zen-notes*
 
+							*zen-pads*
+The four padding windows are ordinary Vim windows: Vim has no way
+to draw a margin that is not a window.  They are made to look like plain
+background (no numbers, no cursor line/column, no colorcolumn, no
+winbar, a blank status line and a background-coloured status line
+highlight).
+
+Closing a pad, or using |:only| / <C-w>o, does not leave Zen.  The
+surviving window becomes the new master and the pads are rebuilt
+around it, so a stray close never leaves a broken layout.
+
 *zen-confine*
 Some commands, such as |:help|, |:tag| and |:copen|, open a window with
 `:topleft split` or `:botright split`.  Such a window spans the whole tab and

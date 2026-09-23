@@ -353,6 +353,48 @@ Test('help window stays within content column', () => {
   zen#Close()
 })
 
+Test('pads look like plain background', () => {
+  zen#Open('80x20')
+  for k in ['l', 'r', 't', 'b']
+    var w = bufwinnr(ZenPads()[k])
+    assert_true(w > 0)
+    # No numbers, no cursor line/column, no colorcolumn, blank statusline.
+    assert_equal(0, getwinvar(w, '&number'))
+    assert_equal(0, getwinvar(w, '&relativenumber'))
+    assert_equal(0, getwinvar(w, '&cursorline'))
+    assert_equal(0, getwinvar(w, '&cursorcolumn'))
+    assert_equal('', getwinvar(w, '&colorcolumn'))
+    assert_equal('', getwinvar(w, '&statusline'))
+  endfor
+  zen#Close()
+})
+
+Test('<C-w>h/j/k/l/t/b never move into a pad', () => {
+  zen#Open('80x20')
+  var master = winnr()
+  for k in ['h', 'j', 'k', 'l', 't', 'b']
+    execute 'normal ' .. "\<C-w>" .. k
+    assert_equal(master, winnr())
+  endfor
+  zen#Close()
+})
+
+Test('<C-w>h/l still work between content windows', () => {
+  zen#Open('80x20')
+  vsplit
+  wincmd l
+  var right = winnr()
+  var pads = ZenPads()
+  # From the right content window, h goes to the other content window, not a pad.
+  execute 'normal ' .. "\<C-w>" .. 'h'
+  var padbufs = [pads['l'], pads['r'], pads['t'], pads['b']]
+  assert_true(index(padbufs, bufnr('%')) < 0)
+  # And l goes back.
+  execute 'normal ' .. "\<C-w>" .. 'l'
+  assert_equal(right, winnr())
+  zen#Close()
+})
+
 # ---------------------------------------------------------------------------
 # 7. Robustness: repeated calls and invalid input
 # ---------------------------------------------------------------------------
@@ -632,31 +674,43 @@ Test('opening help while active does not raise E21', () => {
   zen#Close()
 })
 
-Test('closing a single pad leaves Zen', () => {
+Test('closing a single pad rebuilds the pads', () => {
   zen#Open('80x20')
   assert_true(ZenActive())
   assert_equal(5, winnr('$'))
-  # Close just the left pad; the layout is broken so Zen must end.
-  execute ':' .. bufwinnr(ZenPads().l) .. 'wincmd c'
+  var old_pads = ZenPads()
+  # Close just the left pad; the pads are rebuilt around the master.
+  execute ':' .. bufwinnr(old_pads['l']) .. 'wincmd c'
   sleep 30m
-  assert_false(ZenActive())
-  assert_equal(1, winnr('$'))
-  assert_equal(0, exists('#zen'))
+  assert_true(ZenActive())
+  assert_equal(5, winnr('$'))
+  # The master is unchanged and all four pads exist again.
+  assert_equal(old_pads['l'] != ZenPads()['l'], true)
+  for k in ['l', 'r', 't', 'b']
+    assert_true(bufwinnr(ZenPads()[k]) > 0)
+  endfor
+  zen#Close()
 })
 
-Test(':only / <C-w>o leaves Zen instead of leaving a broken layout', () => {
+Test(':only / <C-w>o re-anchors Zen on the surviving window', () => {
   zen#Open('80x20')
   assert_true(ZenActive())
-  assert_equal(5, winnr('$'))
-  # Closing every other window removes the pads.
+  # Put the cursor in another content window so it becomes the new master.
+  split
+  var target = bufnr('%')
+  assert_equal(6, winnr('$'))
   wincmd o
-  # The session is torn down from a deferred check.
   sleep 30m
-  assert_false(ZenActive())
-  assert_equal(1, winnr('$'))
+  # Zen survives, with the pads rebuilt around the surviving window.
+  assert_true(ZenActive())
+  assert_equal(5, winnr('$'))
+  assert_equal(target, bufnr('%'))
+  assert_equal(target, t:zen_master)
+  for k in ['l', 'r', 't', 'b']
+    assert_true(bufwinnr(ZenPads()[k]) > 0)
+  endfor
+  zen#Close()
   assert_equal(1, tabpagenr('$'))
-  assert_equal(0, exists('#zen'))
-  assert_equal(0, exists('t:zen_pads'))
 })
 
 # ---------------------------------------------------------------------------

@@ -7,6 +7,18 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- The pad windows now stay out of the cursor's way: `<C-w>h`, `<C-w>j`,
+  `<C-w>k`, `<C-w>l`, `<C-w>t` and `<C-w>b` do nothing when they would move
+  into a pad, so the cursor no longer flashes into the padding.  Movement
+  between content windows is unchanged, and a fallback still bounces the
+  cursor back if it reaches a pad another way.
+- `:only` / `<C-w>o`, or closing a pad by hand, no longer leaves Zen.  The
+  surviving window becomes the new master and the pads are rebuilt around it
+  (Reanchor()).  Replaces the previous behaviour of leaving Zen.
+- Pads are made more thoroughly background-like: an empty status line is
+  only set when needed (fewer redraws when the cursor bounces out), the
+  winbar is cleared when the option exists, and the WinBar/WinBarNC
+  highlight groups are blended in when present.
 - Raised the minimum supported Vim to **9.1.1652** (it was 9.1.0000).
   plugin/zen.vim, `ci.sh` and the CI matrix now require 9.1.1652, which
   covers the features used by the implementation: gettext()/bindtextdomain()

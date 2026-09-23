@@ -142,7 +142,12 @@ enddef
 
 # Hide the status line, both for the window and for itself.
 def HideStatusline()
-  setlocal statusline=\ 
+  # An empty status line leaves a blank row; only touch the option when it is
+  # not already empty, since a redundant :setlocal triggers a redraw that is
+  # visible when the cursor bounces out of a pad.
+  if !empty(&l:statusline)
+    setlocal statusline=
+  endif
 enddef
 
 # Hide 'number', 'relativenumber' and 'colorcolumn' unless the user asked
@@ -169,6 +174,11 @@ const PAD_DEFS: list<dict<string>> = [
   {key: 't', cmd: 'topleft new',           repel: 'j'},
   {key: 'b', cmd: 'botright new',          repel: 'k'},
 ]
+
+# Window-movement keys: they are routed through ZenMove() so the cursor never
+# moves into a pad.  "<C-w>h/j/k/l" move to an adjacent window; "<C-w>t" and
+# "<C-w>b" jump to the top/bottom window, which are pads here.
+const MOVE_KEYS: list<string> = ['h', 'j', 'k', 'l', 't', 'b']
 
 const NOP_KEYS: list<string> = ['R', 'H', 'J', 'K', 'L', '|', '_']
 const RESIZE_KEYS: dict<string> = {
@@ -197,6 +207,13 @@ def InstallMaps(): list<string>
       mapped->add(k)
     endif
   endfor
+  for k in MOVE_KEYS
+    if empty(maparg("\<C-w>" .. k, 'n'))
+      execute 'nnoremap <silent> <C-w>' .. escape(k, '|')
+        .. ' <ScriptCmd>ZenMove(' .. string(k) .. ')<CR>'
+      mapped->add(k)
+    endif
+  endfor
   return mapped
 enddef
 
@@ -216,10 +233,15 @@ enddef
 def InitPad(command: string): number
   execute command
 
-  # Set all window-local options in one go.
+  # Set all window-local options in one go.  A pad must look like plain
+  # background: no numbers, no cursor line/column, no colorcolumn, a blank
+  # status line and (where the option exists) no winbar.
   setlocal buftype=nofile bufhidden=wipe nomodifiable nobuflisted
     \ noswapfile nonumber norelativenumber nocursorline nocursorcolumn
-    \ colorcolumn= winfixwidth winfixheight nowrap statusline=\ 
+    \ colorcolumn= winfixwidth winfixheight nowrap statusline=
+  if exists('&winbar')
+    setlocal winbar=
+  endif
   var bufnr = winbufnr(0)
 
   if winnr('#') > 0
@@ -276,6 +298,78 @@ def Defer(Fn: func)
   else
     Fn()
   endif
+enddef
+
+# Return the window id of the window adjacent to the current one in {dir}
+# ("h", "j", "k" or "l"), or 0 when there is none.  Used to keep the cursor
+# from moving into a pad, which cannot be prevented by Vim itself.
+def Adjacent(dir: string): number
+  var cur = win_getid()
+  var ci = getwininfo(cur)[0]
+  var best = 0
+  var bestscore = 0
+  for w in getwininfo()
+    if w.tabnr != ci.tabnr || w.winid == cur
+      continue
+    endif
+    var ok = false
+    if dir ==# 'h'
+      && w.wincol + w.width <= ci.wincol
+      && w.winrow < ci.winrow + ci.height && w.winrow + w.height > ci.winrow
+      ok = true
+    elseif dir ==# 'l'
+      && w.wincol >= ci.wincol + ci.width
+      && w.winrow < ci.winrow + ci.height && w.winrow + w.height > ci.winrow
+      ok = true
+    elseif dir ==# 'k'
+      && w.winrow + w.height <= ci.winrow
+      && w.wincol < ci.wincol + ci.width && w.wincol + w.width > ci.wincol
+      ok = true
+    elseif dir ==# 'j'
+      && w.winrow >= ci.winrow + ci.height
+      && w.wincol < ci.wincol + ci.width && w.wincol + w.width > ci.wincol
+      ok = true
+    endif
+    if ok
+      var d = abs(w.wincol - ci.wincol) + abs(w.winrow - ci.winrow)
+      if best == 0 || d < bestscore
+        best = w.winid
+        bestscore = d
+      endif
+    endif
+  endfor
+  return best
+enddef
+
+# Move the cursor in {dir}, but never into a pad window.  When the adjacent
+# window is a pad, nothing happens, so the cursor does not flash into the
+# padding before Blank() bounces it back.
+def ZenMove(dir: string)
+  if exists('t:zen_pads')
+    var padbufs = PadBufs()
+    if dir ==# 't' || dir ==# 'b'
+      # Top-most / bottom-most window in this tab; that is a pad in Zen.
+      var top = getwininfo(win_getid())[0]
+      for w in getwininfo()
+        if w.tabnr != top.tabnr
+          continue
+        endif
+        if (dir ==# 't' && w.winrow < top.winrow)
+            || (dir ==# 'b' && w.winrow + w.height > top.winrow + top.height)
+          top = w
+        endif
+      endfor
+      if index(padbufs, top.bufnr) >= 0
+        return
+      endif
+    else
+      var target = Adjacent(dir)
+      if target > 0 && index(padbufs, winbufnr(target)) >= 0
+        return
+      endif
+    endif
+  endif
+  execute 'noautocmd wincmd ' .. dir
 enddef
 
 # Bounce the cursor back into the content window.
@@ -486,12 +580,20 @@ enddef
 # Blend interface elements into the background for a distraction-free look.
 # All groups are updated with a single hlset() call.
 def Tranquilize()
+  var groups = copy(TRANQUILIZED_GROUPS)
+  # Blend the winbar highlight groups into the background too, but only when
+  # they exist (they were added with 'winbar').
+  for grp in ['WinBar', 'WinBarNC']
+    if !empty(hlget(grp, true))
+      groups->add(grp)
+    endif
+  endfor
   var bg = GroupBg('Normal')
   if empty(bg)
     # No usable background colour: fall back to g:zen_bg with no background.
-    SetGroupColors(TRANQUILIZED_GROUPS, get(g:, 'zen_bg', 'black'), 'NONE')
+    SetGroupColors(groups, get(g:, 'zen_bg', 'black'), 'NONE')
   else
-    SetGroupColors(TRANQUILIZED_GROUPS, bg, bg)
+    SetGroupColors(groups, bg, bg)
   endif
 enddef
 
@@ -858,9 +960,59 @@ def CheckPads()
   if !exists('#zen') || !exists('t:zen_pads')
     return
   endif
-  if !PadsIntact()
-    ZenOff()
+  if PadsIntact()
+    return
   endif
+  # A pad window is gone (for example :only / <C-w>o).  Rather than leaving
+  # Zen, re-anchor it on the window that survived and rebuild the pads, so
+  # the session keeps going with the cursor's window as the new master.
+  Reanchor()
+enddef
+
+# Rebuild the pad windows around the current window after some of them were
+# removed.  The current window becomes the new master.  If the current window
+# is itself a pad there is nothing sensible to keep, so Zen is left instead.
+var reanchoring = false
+
+def Reanchor()
+  if reanchoring
+    return
+  endif
+  if !exists('#zen') || !exists('t:zen_pads')
+    return
+  endif
+  var cur = winbufnr(0)
+  if index(PadBufs(), cur) >= 0
+    # The cursor is in a pad; there is no content window to keep.
+    ZenOff()
+    return
+  endif
+
+  reanchoring = true
+  try
+    # Drop any pad windows that survived but are no longer usable.
+    for b in PadBufs()
+      var w = bufwinnr(b)
+      if w > 0
+        execute ':' .. w .. 'wincmd c'
+      endif
+    endfor
+
+    # The surviving window becomes the master.
+    t:zen_master = cur
+    t:zen_winid = win_getid()
+    t:zen_pads = {}
+
+    for pad in PAD_DEFS
+      t:zen_pads[pad.key] = InitPad(pad.cmd)
+    endfor
+    for pad in PAD_DEFS
+      BindPadAutocmd(t:zen_pads[pad.key], pad.repel)
+    endfor
+    ResizePads()
+  finally
+    reanchoring = false
+  endtry
 enddef
 
 def ZenOn(dim_arg: string)
@@ -1000,6 +1152,12 @@ def AbortOn()
   endif
   RestoreHighlights(saved_highlights)
   EnablePlugins(disabled)
+
+  # Reset the deferred-action flags in case the failure interrupted one.
+  resizing = false
+  confine_pending = false
+  pads_check_pending = false
+  reanchoring = false
 enddef
 
 # Leave Zen and transplant the content-window layout back to the

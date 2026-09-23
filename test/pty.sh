@@ -39,8 +39,9 @@ check_grep() { # description, pattern
 check_grep ":Zen command exists"              '^command=2'
 check_grep "enters Zen in a real terminal"    '^entered=1,5'
 check_grep "help window confined to column"   '^help_confined=2,'
-check_grep "cursor bounces out of a pad"      '^pad_bounce=1'
+check_grep "movement keys never enter a pad" '^moves_left_master=0'
 check_grep "survives a real screen resize"    '^resized=5'
+check_grep ":only re-anchors Zen"             '^only_reanchor=1,5,1,1'
 check_grep "leaves with one window and tab"   '^left=0,1,1'
 
 if [ "$fail" -eq 0 ]; then

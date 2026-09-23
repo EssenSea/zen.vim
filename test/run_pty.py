@@ -55,14 +55,33 @@ for i in range(1, winnr('$'))
 endfor
 call add(s:log, 'help_confined=' . s:wide . ',' . winnr('$'))
 
-" Moving into a pad bounces the cursor back into the content column.
-let s:before = winnr()
-wincmd k
-call add(s:log, 'pad_bounce=' . (s:before != winnr()))
+" Movement keys must not move the cursor into a pad.
+let s:master = winnr()
+let s:entered = 0
+for s:k in ['h', 'j', 'k', 'l', 't', 'b']
+  execute 'normal ' . "\<C-w>" . s:k
+  if winnr() != s:master
+    let s:entered += 1
+  endif
+endfor
+call add(s:log, 'moves_left_master=' . s:entered)
 
 " A real screen resize exercises WinResized/VimResized.
 set columns=90
 call add(s:log, 'resized=' . winnr('$'))
+
+" :only must re-anchor rather than leave Zen.
+split
+let s:target = winbufnr('%')
+wincmd o
+sleep 200m
+let s:allpads = 1
+for s:b in values(get(t:, 'zen_pads', {}))
+  if bufwinnr(s:b) <= 0
+    let s:allpads = 0
+  endif
+endfor
+call add(s:log, 'only_reanchor=' . exists('#zen') . ',' . winnr('$') . ',' . s:allpads . ',' . (s:target == winbufnr('%')))
 
 call zen#Close()
 call add(s:log, 'left=' . exists('#zen') . ',' . winnr('$') . ',' . tabpagenr('$'))
