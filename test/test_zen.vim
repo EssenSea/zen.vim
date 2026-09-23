@@ -612,6 +612,53 @@ Test('all stray windows are confined in one deferred pass', () => {
   zen#Close()
 })
 
+Test('opening help while active does not raise E21', () => {
+  zen#Open('80x20')
+  # Regression: SetupPad() used append(buf, ...) which wrote to the current
+  # buffer; with a read-only help window current this raised
+  # E21: Cannot make changes, 'modifiable' is off.
+  silent! help
+  sleep 30m
+  assert_true(ZenActive())
+  # The help window must have been confined to the content column.
+  var helpwin = 0
+  for i in range(1, winnr('$'))
+    if bufname(winbufnr(i)) =~ 'help.txt\|doc/'
+      helpwin = i
+    endif
+  endfor
+  assert_true(helpwin > 0)
+  assert_true(winwidth(helpwin) < &columns)
+  zen#Close()
+})
+
+Test('closing a single pad leaves Zen', () => {
+  zen#Open('80x20')
+  assert_true(ZenActive())
+  assert_equal(5, winnr('$'))
+  # Close just the left pad; the layout is broken so Zen must end.
+  execute ':' .. bufwinnr(ZenPads().l) .. 'wincmd c'
+  sleep 30m
+  assert_false(ZenActive())
+  assert_equal(1, winnr('$'))
+  assert_equal(0, exists('#zen'))
+})
+
+Test(':only / <C-w>o leaves Zen instead of leaving a broken layout', () => {
+  zen#Open('80x20')
+  assert_true(ZenActive())
+  assert_equal(5, winnr('$'))
+  # Closing every other window removes the pads.
+  wincmd o
+  # The session is torn down from a deferred check.
+  sleep 30m
+  assert_false(ZenActive())
+  assert_equal(1, winnr('$'))
+  assert_equal(1, tabpagenr('$'))
+  assert_equal(0, exists('#zen'))
+  assert_equal(0, exists('t:zen_pads'))
+})
+
 # ---------------------------------------------------------------------------
 # 13. Plugin layer and namespace API (import autoload)
 # ---------------------------------------------------------------------------

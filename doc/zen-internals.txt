@@ -148,6 +148,12 @@ The pad autocommands use the `<buffer=N>` form so that they only fire for
 the pad buffers, and they are installed once (after the first ResizePads()
 call), not on every resize.
 
+The |WinClosed| event is used to notice when a pad window is removed, for
+example by `:only` or `<C-w>o`.  WinClosed fires just before the window is
+removed, so the check is deferred with a zero-delay timer; by then
+PadsIntact() can see that a pad is gone and ZenOff() is called.  This keeps
+a session from being left active with a broken layout.
+
 `User` events |ZenEnter| and |ZenLeave| are fired with |:doautocmd| so
 other plugins can hook into the session.
 

@@ -28,6 +28,14 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Opening help (`<F1>` / `:help`) while Zen was active raised
+  `E21: Cannot make changes, 'modifiable' is off`.  SetupPad() used
+  `append(buf, ...)`, which treats the first argument as a line number and
+  writes to the *current* buffer (the read-only help window); it now uses
+  `appendbufline(buf, ...)`.
+- `:only` / `<C-w>o` (or closing a pad by hand) removed the pad windows but
+  left the session active with a broken layout and no margins.  A |WinClosed|
+  handler now detects a missing pad and leaves Zen.
 - `'winfixbuf'` was added in Vim 9.1.0147, later than the 9.1.0000 minimum,
   but it was used unconditionally after an earlier clean-up.  It is probed
   again (HasWinFixBuf()) so the plugin works on the earliest supported

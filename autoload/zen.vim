@@ -237,7 +237,9 @@ def SetupPad(bufnr: number, vert: bool, size: number)
   var diff = winheight(winid) - len(getbufline(bufnr, 1, '$'))
     - (has('gui_running') ? 2 : 0)
   if diff > 0
-    append(bufnr, repeat([''], diff))
+    # appendbufline() targets {buf}; append() would use it as a line number
+    # and write to the *current* buffer (which may be read-only, e.g. help).
+    appendbufline(bufnr, 0, repeat([''], diff))
   endif
 
   if get(g:, 'zen_decoration_density', 0.0) > 0.0
@@ -806,6 +808,43 @@ def OnWinEnter()
   endif
 enddef
 
+# Whether every pad still has a window.  Commands such as :only, <C-w>o or
+# closing a pad by hand remove pad windows; the layout is then broken and the
+# session should end.
+def PadsIntact(): bool
+  for pad in PAD_DEFS
+    var b = get(t:zen_pads, pad.key, -1)
+    if b < 0 || bufwinnr(b) <= 0
+      return false
+    endif
+  endfor
+  return true
+enddef
+
+# React to a window being closed: if that removed a pad, leave Zen.  Closing
+# windows from inside WinClosed is unsafe, so it is deferred to the main loop.
+var pads_check_pending = false
+
+def OnWinClosed()
+  # WinClosed fires just *before* the window is removed, so the pad is still
+  # visible here.  Schedule a check to run once the layout has settled.
+  if pads_check_pending || !exists('t:zen_pads') || !exists('#zen')
+    return
+  endif
+  pads_check_pending = true
+  Defer(() => CheckPads())
+enddef
+
+def CheckPads()
+  pads_check_pending = false
+  if !exists('#zen') || !exists('t:zen_pads')
+    return
+  endif
+  if !PadsIntact()
+    ZenOff()
+  endif
+enddef
+
 def ZenOn(dim_arg: string)
   var dim = ParseArg(dim_arg)
   if empty(dim)
@@ -878,6 +917,10 @@ def ZenOn(dim_arg: string)
       # Only act on this tab; ConfineWindows() pulls stray windows back.
       autocmd BufWinEnter * call OnBufWinEnter()
       autocmd WinEnter    * call OnWinEnter()
+      # WinClosed fires when a window is closed; :only / <C-w>o close the pads.
+      if exists('##WinClosed')
+        autocmd WinClosed * call OnWinClosed()
+      endif
     augroup END
 
     HideStatusline()
