@@ -44,6 +44,22 @@ on [Keep a Changelog](https://keepachangelog.com/).
 - Pad autocommands are installed once, not rebuilt on every resize.
 - New `doc/goyo-internals.txt` documents the mechanisms used.
 
+### Performance
+
+- Leaving Goyo no longer reloads the whole color scheme.  The highlight
+  groups changed by Tranquilize() are saved with |hlget()| and restored with
+  |hlset()|, which is both exact and considerably cheaper.
+  Measured with `make bench` on the reference machine:
+    GoyoOn + GoyoOff           0.98ms -> 0.77ms  (-22%)
+    On + stray split + Off     1.23ms -> 1.03ms  (-17%)
+- The pad layout no longer switches windows: sizes and buffer contents are
+  updated with |win_execute()|, |setbufvar()|, |deletebufline()| and
+  |append()|, which removes the WinEnter/WinLeave churn during a resize.
+  Measured with `make bench`:
+    Resize                     0.23ms -> 0.05ms  (-79%)
+    GoyoOn + GoyoOff           0.98ms -> 0.73ms  (-26%)
+- Added `test/bench.vim` / `test/bench.sh` and a `make bench` target.
+
 ### Added
 
 - `test/test_goyo.vim` and `test/run.sh`: a dependency-free test suite.

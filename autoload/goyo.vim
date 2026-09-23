@@ -31,6 +31,13 @@ catch
   # bindtextdomain() is only available with the +multi_lang feature; ignore.
 endtry
 
+# Highlight groups whose attributes are blended into the background while
+# Goyo is active.  They are saved before Tranquilize() and restored on exit.
+const TRANQUILIZED_GROUPS: list<string> = [
+  'NonText', 'FoldColumn', 'ColorColumn', 'VertSplit',
+  'StatusLine', 'StatusLineNC', 'SignColumn',
+]
+
 # ---------------------------------------------------------------------------
 # Session state (stored in tab-local variables).
 #   t:goyo_pads         buffer numbers of the four pads {l,r,t,b}
@@ -201,30 +208,30 @@ def BindPadAutocmd(bufnr: number, repel: string)
 enddef
 
 # Resize the window showing a pad buffer and refill its contents.
+# Everything is done with win_execute()/setbufvar()/deletebufline()/append()
+# so the current window is never left, avoiding spurious WinEnter/WinLeave.
 def SetupPad(bufnr: number, vert: bool, size: number)
   var win = bufwinnr(bufnr)
   if win <= 0
     return
   endif
-  execute ':' .. win .. 'wincmd w'
-  execute (vert ? 'vertical ' : '') .. 'resize ' .. max([0, size])
+  var winid = win_getid(win)
+  win_execute(winid, (vert ? 'vertical resize ' : 'resize ') .. max([0, size]))
 
   # Clear the buffer; append blank lines to hide scroll bars if needed.
-  setlocal modifiable
-  deletebufline(bufnr(''), 1, '$')
-  var diff = winheight(0) - line('$') - (has('gui_running') ? 2 : 0)
+  setbufvar(bufnr, '&modifiable', true)
+  deletebufline(bufnr, 1, '$')
+  var diff = winheight(winid) - len(getbufline(bufnr, 1, '$'))
+    - (has('gui_running') ? 2 : 0)
   if diff > 0
-    append(0, repeat([''], diff))
+    append(bufnr, repeat([''], diff))
   endif
 
   if get(g:, 'goyo_decoration_density', 0.0) > 0.0
-    Decorate()
+    win_execute(winid, 'Decorate()')
   endif
-  setlocal nomodifiable
-  normal! gg
-  if winnr('#') > 0
-    execute ':' .. winnr('#') .. 'wincmd w'
-  endif
+  setbufvar(bufnr, '&modifiable', false)
+  win_execute(winid, 'normal! gg')
 enddef
 
 # Bounce the cursor back into the content window.
@@ -389,11 +396,41 @@ enddef
 # Colours
 # ---------------------------------------------------------------------------
 
+# Save the highlight attributes we are about to change so they can be
+# restored exactly, without reloading the whole color scheme.
+def SaveHighlights(): list<dict<any>>
+  # hlget() takes a single group name, so query them one by one.
+  var saved: list<dict<any>> = []
+  for group in TRANQUILIZED_GROUPS
+    for entry in hlget(group, true)
+      saved->add(entry)
+    endfor
+  endfor
+  return saved
+enddef
+
+def RestoreHighlights(saved: list<dict<any>>)
+  if empty(saved)
+    return
+  endif
+  # hlset() merges the given attributes; it does not remove attributes that
+  # are absent from the dictionary.  Tranquilize() may have added an
+  # attribute the group did not have before, so clear each group first and
+  # then apply the saved attributes.
+  var clears: list<dict<any>> = []
+  var items: list<dict<any>> = []
+  for entry in saved
+    clears->add({name: entry.name, cleared: true})
+    items->add(deepcopy(entry))
+  endfor
+  hlset(clears)
+  hlset(items)
+enddef
+
 # Blend interface elements into the background for a distraction-free look.
 # All groups are updated with a single hlset() call.
 def Tranquilize()
-  var groups = ['NonText', 'FoldColumn', 'ColorColumn', 'VertSplit',
-                'StatusLine', 'StatusLineNC', 'SignColumn']
+  var groups = TRANQUILIZED_GROUPS
   var bg = GroupBg('Normal')
   if empty(bg)
     # No usable background colour: fall back to g:goyo_bg with no background.
@@ -661,6 +698,8 @@ def GoyoOn(dim_arg: string)
   BindPadAutocmd(t:goyo_pads.t, 'j')
   BindPadAutocmd(t:goyo_pads.b, 'k')
 
+  # Remember the highlight attributes Tranquilize() is about to change.
+  t:goyo_highlights = SaveHighlights()
   Tranquilize()
 
   augroup goyo
@@ -706,6 +745,9 @@ def GoyoOff()
   var disabled = get(t:, 'goyo_disabled', {})
   var orig_winid = get(t:, 'goyo_orig_winid', 0)
   var pads = get(t:, 'goyo_pads', {})
+  # Read the saved highlights while still in the Goyo tab: t: variables are
+  # tab-local and the original tab is restored before the end of this function.
+  var saved_highlights = get(t:, 'goyo_highlights', [])
 
   # Collect buffer, cursor and screen position of every content window.
   # getwininfo() supplies the geometry, getcurpos() the cursor.
@@ -777,7 +819,9 @@ def GoyoOff()
   endif
 
   RestoreOptions(revert)
-  silent! execute 'colorscheme ' .. get(g:, 'colors_name', 'default')
+  # Restore the highlight groups we changed instead of reloading the color
+  # scheme, which is much more expensive and would re-trigger ColorScheme.
+  RestoreHighlights(saved_highlights)
 
   EnablePlugins(disabled)
 

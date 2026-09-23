@@ -222,6 +222,28 @@ Test('fillchars and guioptions-like string options are restored', () => {
   assert_true(during_on =~ 'stl:')
 })
 
+Test('highlight groups are restored exactly on leave', () => {
+  # Give Normal a background and a group with an attribute, then check that
+  # entering and leaving Goyo returns them to the previous state.
+  execute 'highlight Normal guibg=#202020'
+  execute 'highlight StatusLine guifg=Black guibg=Yellow gui=bold'
+  execute 'highlight StatusLineNC guifg=Grey gui=italic cterm=underline'
+  var before_sl = hlget('StatusLine', true)
+  var before_slnc = hlget('StatusLineNC', true)
+  goyo#Execute(false, '80x20')
+  goyo#Execute(true, '')
+  assert_equal(before_sl, hlget('StatusLine', true))
+  assert_equal(before_slnc, hlget('StatusLineNC', true))
+})
+
+Test('highlight attribute added by Goyo is removed again', () => {
+  execute 'highlight ColorColumn guibg=LightRed'
+  var before = hlget('ColorColumn', true)
+  goyo#Execute(false, '80x20')
+  goyo#Execute(true, '')
+  assert_equal(before, hlget('ColorColumn', true))
+})
+
 # ---------------------------------------------------------------------------
 # 5. Buffer preservation
 # ---------------------------------------------------------------------------

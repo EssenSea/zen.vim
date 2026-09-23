@@ -7,7 +7,7 @@ VIM    ?= vim
 NVIM   ?= nvim
 PREFIX ?= $(HOME)/.vim
 
-.PHONY: all test test-vim test-nvim lint tags conformance check clean install
+.PHONY: all test test-vim test-nvim lint tags conformance check clean install bench
 
 all: check
 
@@ -45,6 +45,10 @@ install:
 	@mkdir -p "$(PREFIX)/pack/goyo/start/goyo"
 	@cp -R autoload doc lang plugin "$(PREFIX)/pack/goyo/start/goyo/"
 	@echo "installed to $(PREFIX)/pack/goyo/start/goyo"
+
+# Run the micro-benchmarks (reports median/min/max per operation).
+bench:
+	@sh test/bench.sh
 
 clean:
 	@rm -f /tmp/goyo-lint.txt

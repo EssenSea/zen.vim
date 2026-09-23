@@ -71,6 +71,8 @@ Makefile                 common tasks
 ```sh
 make test        # run the suite with Vim
 make test-nvim   # run with Neovim (skipped if it lacks Vim9script)
+make check       # lint + conformance + tests
+make bench       # micro-benchmarks (median/min/max per operation)
 make tags        # regenerate doc/tags
 make lint        # load the plugin to catch compile errors
 ```

@@ -53,11 +53,14 @@ check "scripts have the editor modeline" \
 check "messages are translatable and catalogues exist" \
   "grep -q gettext autoload/goyo.vim && [ -f lang/goyo.pot ] && [ -f lang/en/LC_MESSAGES/goyo.mo ]"
 
-check "Makefile provides check and install targets" \
-  "grep -q '^check:' Makefile && grep -q '^install:' Makefile"
+check "Makefile provides check, install and bench targets" \
+  "grep -q '^check:' Makefile && grep -q '^install:' Makefile && grep -q '^bench:' Makefile"
 
 check "project metadata present" \
   "[ -f README.md ] && [ -f CONTRIBUTING.md ] && [ -f CHANGELOG.md ] && [ -f LICENSE ] && [ -f .editorconfig ]"
+
+check "benchmark tooling present" \
+  "[ -f test/bench.vim ] && [ -f test/bench.sh ]"
 
 check "all source comments are in English" \
   "! grep -rlP '[\x{4e00}-\x{9fff}]' plugin autoload test >/dev/null 2>&1"
