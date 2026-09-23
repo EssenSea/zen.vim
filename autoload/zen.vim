@@ -211,28 +211,33 @@ def ReassertLaststatus()
   endif
 enddef
 
-# Re-assert from a zero-delay timer, de-duplicated like ScheduleConfine().
+# Restore the session invariants from a zero-delay timer, de-duplicated like
+# ScheduleConfine().
 #
-# On `:w` of a vimrc, the reload runs `:source` from inside the BufWritePost
-# autocommand.  A vimrc that sets `&laststatus = 2` does so during that
-# source, and SourcePost does not fire for it (the :source runs inside an
-# autocommand), so there is no later event to hook.  A zero-delay timer runs
-# after the whole autocommand chain -- including the source -- has finished,
-# which is the reliable point to restore the invariant.
-var laststatus_pending = false
+# On `:w` of a config that is reloaded with `:source` from a BufWritePost
+# autocommand, that source can:
+#   * set `&laststatus = 2` (configs that force a status line), and
+#   * run a colorscheme whose 'ColorScheme' autocommands re-set 'StatusLine'
+#     / 'StatusLineNC' after Tranquilize() already blended them, and
+# because the :source runs inside an autocommand, SourcePost does not fire for
+# it, so there is no later event to hook.  A zero-delay timer runs after the
+# whole autocommand chain -- including the source -- has finished, which is
+# the reliable point to restore both invariants.  Tranquilize() itself calls
+# ReassertLaststatus() first.
+var restore_pending = false
 
-def ScheduleReassertLaststatus()
-  if laststatus_pending || !exists('t:zen_pads')
+def ScheduleRestore()
+  if restore_pending || !exists('t:zen_pads')
     return
   endif
-  laststatus_pending = true
-  Defer(() => ApplyReassertLaststatus())
+  restore_pending = true
+  Defer(() => ApplyRestore())
 enddef
 
-def ApplyReassertLaststatus()
-  laststatus_pending = false
+def ApplyRestore()
+  restore_pending = false
   if exists('#zen') && exists('t:zen_pads')
-    ReassertLaststatus()
+    Tranquilize()
   endif
 enddef
 
@@ -1235,7 +1240,7 @@ def ZenOn(dim_arg: string)
       autocmd WinEnter    * call OnWinEnter()
       # A :w of a config file may source it and reset 'laststatus'; re-assert
       # once the whole autocommand chain (including the source) has finished.
-      autocmd BufWritePost * call ScheduleReassertLaststatus()
+      autocmd BufWritePost * call ScheduleRestore()
       # WinClosed fires when a window is closed; :only / <C-w>o close the pads.
       if exists('##WinClosed')
         autocmd WinClosed * call OnWinClosed()
@@ -1314,7 +1319,7 @@ def AbortOn()
   # Reset the deferred-action flags in case the failure interrupted one.
   resizing = false
   confine_pending = false
-  laststatus_pending = false
+  restore_pending = false
   pads_check_pending = false
   reanchoring = false
 enddef

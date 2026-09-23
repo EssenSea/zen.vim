@@ -266,19 +266,28 @@ Test('global options are restored on leave', () => {
   assert_equal(5, &sidescroll)
 })
 
-Test('laststatus is re-asserted after a reload resets it', () => {
-  # Regression: on `:w` of a vimrc the reload runs :source inside the
-  # BufWritePost autocommand; a config that sets `&laststatus = 2` during that
-  # source makes every window draw a status line again.  Zen re-asserts
-  # laststatus=0 from a zero-delay timer after the autocommand chain ends.
+Test('reload restores laststatus and the blended highlights', () => {
+  # Regression: on `:w` of a config the reload runs :source inside the
+  # BufWritePost autocommand.  That source may set `&laststatus = 2` and run a
+  # colorscheme whose ColorScheme autocommands re-set StatusLine/StatusLineNC
+  # *after* Tranquilize() blended them, so the blank separator rows would show
+  # as a coloured bar again.  Zen restores both from a zero-delay timer after
+  # the whole autocommand chain has finished.
+  # Use cterm colours: the test runs without termguicolors, so Tranquilize()
+  # blends the cterm set.
+  execute 'highlight Normal ctermfg=223 ctermbg=235'
   zen#Open('80x20')
   assert_equal(0, &laststatus)
-  # Simulate the config setting it during the reload.
+  # Simulate what the reload's source does.
   set laststatus=2
+  execute 'highlight StatusLine ctermfg=255 ctermbg=240 cterm=bold'
   doautocmd BufWritePost
   # The fix runs from a zero-delay timer, so let the main loop turn.
   sleep 30m
   assert_equal(0, &laststatus)
+  var sl: dict<any> = hlget('StatusLine', true)[0]
+  assert_equal('235', get(sl, 'ctermbg', ''))
+  assert_equal('235', get(sl, 'ctermfg', ''))
   # WinEnter must also restore it.
   set laststatus=2
   doautocmd WinEnter
