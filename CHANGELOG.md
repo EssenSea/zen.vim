@@ -7,6 +7,10 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Opening a new tab no longer ends the session.  `:tabnew` / `:tabedit` keep
+  the Zen tab (the new tab is an ordinary tab without a session), and
+  switching back to the Zen tab finds it still active.  A plain `:tabnext` /
+  `:tabprevious` still leaves Zen, and `:q` on the Zen tab still closes it.
 - The pad windows now stay out of the cursor's way: `<C-w>h`, `<C-w>j`,
   `<C-w>k`, `<C-w>l`, `<C-w>t` and `<C-w>b` do nothing when they would move
   into a pad, so the cursor no longer flashes into the padding.  Movement

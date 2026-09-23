@@ -43,6 +43,7 @@ zen-notes	zen.txt	/*zen-notes*
 zen-options	zen.txt	/*zen-options*
 zen-pads	zen.txt	/*zen-pads*
 zen-requirements	zen.txt	/*zen-requirements*
+zen-tabs	zen.txt	/*zen-tabs*
 zen-translation	zen.txt	/*zen-translation*
 zen.txt	zen.txt	/*zen.txt*
 zen.vim	zen.txt	/*zen.vim*

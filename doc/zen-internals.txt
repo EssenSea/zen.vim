@@ -207,6 +207,15 @@ PadsIntact() can see that a pad is gone.  Reanchor() then makes the
 surviving window the new master and rebuilds the pads around it, so the
 session keeps going instead of being left with a broken layout.
 
+Leaving the Zen tab ends the session, but creating a new tab must not.  The
+|TabLeave| handler therefore defers the close through a zero-delay timer
+(ScheduleZenOff()), and a |TabNew| handler cancels it (CancelZenOff()): a
+plain |:tabnext| / |:tabprevious| fires only TabLeave, so the timer closes
+the session, while |:tabnew| / |:tabedit| fires TabNew right after and the
+session is kept.  The deferred close records the tab that held the session
+(zenoff_tab) and switches back to it before calling ZenOff(), because the
+tab-local session state is only visible there.
+
 `User` events |ZenEnter| and |ZenLeave| are fired with |:doautocmd| so
 other plugins can hook into the session.
 

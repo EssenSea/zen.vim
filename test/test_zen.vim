@@ -404,6 +404,37 @@ Test('leaving Zen returns to the original tab and window', () => {
   assert_equal(2, tabpagenr('$'))
 })
 
+Test(':tabnew keeps the Zen session', () => {
+  # :tabnew fires TabLeave then TabNew; the session must survive, and the
+  # switch back to the Zen tab must find it still active.
+  zen#Open('80x20')
+  assert_equal(2, tabpagenr('$'))
+  tabnew
+  sleep 30m
+  # original + Zen + the new tab
+  assert_equal(3, tabpagenr('$'))
+  # The new tab has no session of its own (sessions are tab-local).
+  assert_false(exists('t:zen_pads'))
+  execute 'tabnext 2'
+  sleep 30m
+  assert_true(ZenActive())
+  assert_equal(5, winnr('$'))
+  zen#Close()
+})
+
+Test(':tabnext to another tab leaves Zen', () => {
+  # Make a spare tab, then open Zen from the first one and switch away.
+  tabnew
+  execute 'tabnext 1'
+  zen#Open('80x20')
+  assert_true(ZenActive())
+  execute 'tabnext 3'
+  sleep 30m
+  assert_false(ZenActive())
+  # The spare tab is still there; the Zen tab is gone.
+  assert_equal(2, tabpagenr('$'))
+})
+
 # ---------------------------------------------------------------------------
 # 6. Confining content windows (ConfineWindows)
 # ---------------------------------------------------------------------------

@@ -211,6 +211,48 @@ def ReassertLaststatus()
   endif
 enddef
 
+# Leaving the Zen tab ends the session -- except when a new tab is created.
+#
+# ':tabnew' / ':tabedit' fire TabLeave and then TabNew; the new tab must not
+# destroy the existing session, so the leave is deferred and cancelled by
+# TabNew.  A plain ':tabnext' / ':tabprevious' fires no TabNew, so the timer
+# runs and ends the session.  ZenOff() works on tab-local state, so the timer
+# switches back to the tab that held the session before calling it (the timer
+# may fire after the current tab has already changed).
+var zenoff_pending = false
+var zenoff_tab = 0
+
+def ScheduleZenOff()
+  # Only a tab that actually holds a session can be left because of Zen.
+  if zenoff_pending || !exists('t:zen_revert')
+    return
+  endif
+  zenoff_pending = true
+  zenoff_tab = tabpagenr()
+  Defer(() => ApplyZenOff())
+enddef
+
+def CancelZenOff()
+  zenoff_pending = false
+  zenoff_tab = 0
+enddef
+
+def ApplyZenOff()
+  if !zenoff_pending
+    return
+  endif
+  var tab = zenoff_tab
+  zenoff_pending = false
+  zenoff_tab = 0
+  if tab <= 0 || tab > tabpagenr('$') || !exists('#zen')
+    return
+  endif
+  if tabpagenr() != tab
+    execute ':' .. tab .. 'tabnext'
+  endif
+  ZenOff()
+enddef
+
 # Restore the session invariants from a zero-delay timer, de-duplicated like
 # ScheduleConfine().
 #
@@ -1231,7 +1273,12 @@ def ZenOn(dim_arg: string)
 
     augroup zen
       autocmd!
-      autocmd TabLeave    * ++nested call ZenOff()
+      # Leaving the Zen tab ends the session, unless a new tab is being
+      # created (:tabnew/:tabedit fires TabNew right after TabLeave).
+      autocmd TabLeave    * ++nested call ScheduleZenOff()
+      if exists('##TabNew')
+        autocmd TabNew * call CancelZenOff()
+      endif
       autocmd VimResized  * call ResizePads()
       # WinResized (Vim 9.0.0917) is more precise than VimResized.
       autocmd WinResized  * call ResizePads()
@@ -1321,6 +1368,8 @@ def AbortOn()
   resizing = false
   confine_pending = false
   restore_pending = false
+  zenoff_pending = false
+  zenoff_tab = 0
   pads_check_pending = false
   reanchoring = false
 enddef

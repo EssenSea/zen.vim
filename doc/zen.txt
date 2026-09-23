@@ -198,6 +198,13 @@ Closing a pad, or using |:only| / <C-w>o, does not leave Zen.  The
 surviving window becomes the new master and the pads are rebuilt
 around it, so a stray close never leaves a broken layout.
 
+*zen-tabs*
+A Zen session lives in its own tab page (the original tab is kept).  Leaving
+that tab ends the session, so |:tabnext| and |:tabprevious| leave Zen.  A new
+tab, however, is not treated as leaving Zen: |:tabnew| and |:tabedit| keep
+the session, and switching back to the Zen tab finds it still active.  The
+new tab is an ordinary tab without a session of its own.
+
 *zen-confine*
 Some commands, such as |:help|, |:tag| and |:copen|, open a window with
 `:topleft split` or `:botright split`.  Such a window spans the whole tab and
