@@ -1,0 +1,177 @@
+*goyo.txt*  无干扰写作模式 (Distraction-free writing)          *goyo* *goyo.vim*
+
+                            GOYO.VIM
+                    无干扰写作模式 / Distraction-free writing
+                          For Vim version 9.1.0000+
+
+goyo.vim 提供一个 Vim 的免打扰写作环境：
+缓冲区居中显示，四周由自动调整的填充窗口（pad）撑开，配合被隐藏的
+状态栏、行号等界面元素，让你专注于正文。
+
+本文件对应的实现为 Vim9script（autoload/goyo.vim）。
+
+==============================================================================
+目录                                                     *goyo-contents*
+
+  1. 安装                      |goyo-install|
+  2. 快速开始                  |goyo-quickstart|
+  3. 命令                      |goyo-command|
+  4. 选项                      |goyo-options|
+  5. 回调与事件                |goyo-callbacks|
+  6. 映射                      |goyo-mappings|
+  7. 已知问题                  |goyo-issues|
+  8. 开发与测试                |goyo-development|
+
+==============================================================================
+1. 安装                                                         *goyo-install*
+
+使用任意插件管理器，或手动安装：把本仓库目录放入 'runtimepath'：
+
+    set runtimepath+=/path/to/goyo.vim
+
+插件会在启动时通过 plugin/goyo.vim 定义 |:Goyo| 命令。
+
+依赖：需要带 |+vim9script| 的 Vim（Vim 9.1.0000 及以上）。
+若 Vim 编译时未包含该特性，插件会给出提示并跳过加载。
+
+==============================================================================
+2. 快速开始                                                 *goyo-quickstart*
+
+    :Goyo
+
+退出：
+
+    :Goyo
+
+或使用 <Plug> 映射（见 |goyo-mappings|）。
+
+==============================================================================
+3. 命令                                                         *goyo-command*
+
+                                                                *:Goyo*
+:Goyo [dimensions]      进入 Goyo。再次执行则退出。
+
+                        [dimensions] 可指定内容窗口的尺寸：
+                          {width}               宽度（列数）
+                          {width}%              宽度（屏幕百分比）
+                          {width}x{height}      宽度 x 高度
+                          {width}%x{height}%    百分比形式
+                        width/height 前可加 '+' / '-' 表示相对偏移，
+                        例如 `:Goyo 100-10x50%+2`。
+
+:Goyo [dimensions]      在已激活时，以新的尺寸重新排布（不会重建会话）。
+:Goyo!                  强制退出，忽略任何错误。
+
+示例：
+    :Goyo 80            内容宽 80 列
+    :Goyo 80x20         内容 80 列 x 20 行
+    :Goyo 50%x70%       宽 50%、高 70%
+    :Goyo 90-10         宽 90 列且左移 10 列
+
+==============================================================================
+4. 选项                                                         *goyo-options*
+
+                                                            *g:goyo_width*
+g:goyo_width            默认：80
+                        内容窗口默认宽度（列数或百分比字符串）。
+
+                                                            *g:goyo_height*
+g:goyo_height           默认：'85%'
+                        内容窗口默认高度。
+
+                                                        *g:goyo_margin_top*
+g:goyo_margin_top       默认：4
+                        顶部页边距。若设置了 margin_top/margin_bottom，
+                        则优先于 g:goyo_height。
+
+                                                     *g:goyo_margin_bottom*
+g:goyo_margin_bottom    默认：4
+                        底部页边距。
+
+                                                            *g:goyo_bg*
+g:goyo_bg               默认：'black'
+                        当无法从 'Normal' 高亮取得背景色时，用于填充的
+                        回退背景色。
+
+                                                            *g:goyo_linenr*
+g:goyo_linenr           默认：0
+                        设为 1 则在 Goyo 中保留行号。
+
+                                          *g:goyo_decoration_elements*
+g:goyo_decoration_elements
+                        默认：['~']
+                        用于填充窗口 ASCII 装饰的元素列表。
+
+                                           *g:goyo_decoration_density*
+g:goyo_decoration_density
+                        默认：0.0
+                        装饰密度，范围 0.0 到 1.0。
+
+==============================================================================
+5. 回调与事件                                               *goyo-callbacks*
+
+                                                *g:goyo_callbacks*
+g:goyo_callbacks        默认：未设置
+                        一个包含两个 |Funcref| 的列表：
+                          [0] 进入 Goyo 后调用
+                          [1] 离开 Goyo 后调用
+
+                                                             *GoyoEnter*
+在进入 Goyo 后触发 |User| 自动命令事件 `GoyoEnter`：
+    autocmd User GoyoEnter call MyOnGoyoEnter()
+
+                                                             *GoyoLeave*
+在离开 Goyo 后触发 |User| 自动命令事件 `GoyoLeave`：
+    autocmd User GoyoLeave call MyOnGoyoLeave()
+
+==============================================================================
+6. 映射                                                     *goyo-mappings*
+
+本插件不直接绑定任何全局按键，仅提供以下 <Plug> 映射：
+
+    <Plug>(goyo-off)        关闭 Goyo
+    <Plug>(goyo-resize)     按当前表达式重新排布
+
+在 Goyo 激活期间，以下局部映射会临时生效（若该键未被占用）：
+    <C-w>R <C-w>H <C-w>J <C-w>K <C-w>L <C-w>| <C-w>_   禁用
+    <C-w>=            重新计算尺寸
+    <C-w>> <C-w><     调整宽度
+    <C-w>+ <C-w>-     调整高度
+退出时这些映射会被移除。
+
+==============================================================================
+7. 已知问题                                                   *goyo-issues*
+
+* 某些插件（vim-airline、lightline、vim-gitgutter、vim-signify、
+  vim-powerline）会被临时禁用，退出后恢复。
+* 若在 Goyo 中打开新的整屏窗口（如 :topleft split、:help），插件会尝试
+  把它收回到内容列内（见 |goyo-confine|）。
+
+                                                             *goyo-confine*
+ConfineWindows()
+    当 |BufWinEnter| 显示某内容窗口整块越出内容列时，关闭该窗口并从
+    master 窗口以普通 |:split| 重新打开其缓冲区，使其回到内容列。
+    每次只处理一个窗口，其余窗口由后续事件继续处理。
+
+==============================================================================
+8. 开发与测试                                           *goyo-development*
+
+测试位于 test/ 目录，使用 Vim 内置断言：
+
+    make test
+
+或手动：
+
+    vim -u NONE -i NONE -N -es --not-a-term \
+        --cmd 'set rtp^=.' -S test/test_goyo.vim
+
+目录结构：
+    plugin/goyo.vim       插件加载层，定义 :Goyo
+    autoload/goyo.vim     实现（Vim9script）
+    doc/goyo.txt          本帮助文档
+    test/                 测试
+    ftplugin/             预留的文件类型配置
+
+许可证见仓库根目录的 LICENSE。
+
+vim:tw=78:ts=8:ft=help:norl:
