@@ -33,6 +33,9 @@ sh test/conformance.sh
 echo "== lint =="
 make VIM="$VIM_BIN" lint
 
+echo "== api contract =="
+sh test/api.sh
+
 echo "== test =="
 sh test/run.sh vim
 

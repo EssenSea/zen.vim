@@ -512,16 +512,21 @@ enddef
 # view.  This reproduces nested layouts exactly, unlike inferring the
 # direction from screen coordinates.
 
-# Switch the current window to buffer {buf}.  'winfixbuf' (Vim 9.1) pins a
-# window to its buffer and makes :buffer fail, so it is turned off for the
-# switch and restored afterwards.
+# Whether 'winfixbuf' is available.  The option was added in Vim 9.1.0147,
+# which is later than the 9.1.0000 this plugin otherwise requires, so it must
+# be probed rather than assumed.
+def HasWinFixBuf(): bool
+  return exists('&winfixbuf') == 1
+enddef
+
+# Switch the current window to buffer {buf}.  'winfixbuf' pins a window to its
+# buffer and makes :buffer fail, so it is turned off for the switch and
+# restored afterwards.
 def SwitchBuffer(buf: number)
   if !bufexists(buf)
     return
   endif
-  # 'winfixbuf' (Vim 9.1) pins a window to its buffer; lift it for the switch
-  # and restore it afterwards.
-  var fixed = &winfixbuf
+  var fixed = HasWinFixBuf() && &winfixbuf
   if fixed
     setlocal nowinfixbuf
   endif
@@ -646,7 +651,7 @@ def ConfineWindows()
       continue
     endif
     execute ':' .. master .. 'wincmd w'
-    var was_fixed = &winfixbuf
+    var was_fixed = HasWinFixBuf() && &winfixbuf
     if was_fixed
       setlocal nowinfixbuf
     endif

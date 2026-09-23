@@ -84,6 +84,7 @@ doc/zen-internals.txt    notes on the built-in mechanisms used
 doc/tags                 help tags (regenerate with :helptags doc)
 lang/                    gettext catalogues (zen.pot, <lang>/LC_MESSAGES/zen.mo)
 test/test_zen.vim        test suite
+test/api.vim             Vim API contract tests
 test/conformance.sh      package-convention checks
 test/run.sh              test runner
 test/bench.sh            micro-benchmark runner
@@ -96,7 +97,8 @@ Makefile                 common tasks
 
 ```sh
 make ci          # run the same checks as CI locally
-make check       # lint + conformance + tests
+make check       # lint + conformance + api + tests
+make api         # Vim API contract tests (built-ins, events, options)
 make test        # run the test suite
 make bench       # micro-benchmarks (median/min/max per operation)
 make tags        # regenerate doc/tags

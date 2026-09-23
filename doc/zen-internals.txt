@@ -22,6 +22,7 @@ documentation.  Only Vim 9.1.0000 and newer is supported.
 	8. Deferred actions		|zen-internals-timers|
 	9. Messages			|zen-internals-messages|
 	10. Failure handling		|zen-internals-failure|
+	11. Vim version sensitivity	|zen-internals-version|
 
 ==============================================================================
 2. Windows and tabs	*zen-internals-windows*
@@ -193,9 +194,30 @@ and plugin state that had already been changed.  Every step is written
 defensively because it may run after an arbitrary failure.  The original
 error is re-thrown so the user still sees the cause.
 
-t:zen_on records that the session was fully created.  Callbacks
-(g:zen_callbacks[0]) and the |ZenEnter| event are fired only after a
-successful setup, so a throwing callback cannot leave a half-built layout
+Callbacks (g:zen_callbacks[0]) and the |ZenEnter| event are fired only after
+a successful setup, so a throwing callback cannot leave a half-built layout
 behind; the session stays valid and can be closed as usual.
+
+==============================================================================
+11. Vim version sensitivity	*zen-internals-version*
+
+The plugin targets Vim 9.1.0000 or newer, but a few of the built-ins it uses
+arrived later than that.  They are probed before use rather than assumed:
+
+'winfixbuf'added in 9.1.0147; HasWinFixBuf() checks exists('&winfixbuf')
+and the option access is short-circuited behind it.
+
+The oldest built-ins the plugin relies on are stable but old: maparg() (Vim
+5), and matchlist(), str2nr(), winsaveview()/winrestview(), getbufvar() and
+setbufvar() (Vim 7).  The structural ones are newer: getwininfo() (7.4.2204),
+winlayout() (8.1.0307), mapnew() (8.2.1969), hlget()/hlset() (8.2.3578) and
+WinResized (9.0.0917).
+
+Because Vim changes the *shape* of some return values over time, the contract
+the plugin depends on is pinned by test/api.vim and run by `make api` in CI
+on Vim 9.1.0000, 9.1.1000, 9.1.2000 and master.  If a future Vim renames a
+field, drops an event or changes a return type, `make api` reports it in CI
+rather than at runtime.  A weekly scheduled CI run checks this even when the
+plugin itself has not changed.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

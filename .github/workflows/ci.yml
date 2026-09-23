@@ -4,6 +4,11 @@ on:
   push:
     branches: [ master, main ]
   pull_request:
+  # Re-run weekly so that a change in Vim itself (a new return value, a
+  # renamed event, ...) is reported even when the plugin has not changed.
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -12,8 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Only Vim 9.1 and newer are supported (Vim9script features used here,
-        # e.g. import autoload and WinResized, start with 9.1.0000).
+        # Only Vim 9.1 and newer is supported.  The oldest entry is the lower
+        # bound; master catches upcoming Vim changes early.
         vim: [ 'v9.1.0000', 'v9.1.1000', 'v9.1.2000', 'master' ]
 
     steps:
@@ -28,7 +33,8 @@ jobs:
 
       - name: Build Vim ${{ matrix.vim }}
         run: |
-          git clone --depth 1 --branch "${{ matrix.vim }}" https://github.com/vim/vim.git /tmp/vim
+          git clone --depth 1 --branch "${{ matrix.vim }}" \
+            https://github.com/vim/vim.git /tmp/vim
           cd /tmp/vim
           ./configure --with-features=huge \
             --enable-multibyte \
@@ -41,14 +47,19 @@ jobs:
       - name: Show Vim version
         run: vim --version | head -5
 
-      - name: Run conformance checks
-        run: make conformance
+      # The API contract test runs first: it pins the Vim built-ins, events and
+      # options the plugin relies on, so a Vim change is reported right here.
+      - name: API contract tests
+        run: make api
 
-      - name: Run test suite
-        run: make test-vim
-
-      - name: Run lint
+      - name: Lint (load the plugin)
         run: make lint
 
-      - name: Run benchmarks (informational)
+      - name: Package conformance
+        run: make conformance
+
+      - name: Test suite
+        run: make test-vim
+
+      - name: Benchmarks (informational)
         run: make bench

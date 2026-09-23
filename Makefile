@@ -7,7 +7,7 @@ VIM    ?= vim
 NVIM   ?= nvim
 PREFIX ?= $(HOME)/.vim
 
-.PHONY: all test test-vim test-nvim lint tags conformance check clean install bench ci
+.PHONY: all test test-vim test-nvim lint tags conformance api check clean install bench ci
 
 all: check
 
@@ -38,7 +38,12 @@ lint:
 conformance:
 	@sh test/conformance.sh
 
-check: lint conformance test-vim
+# Verify the Vim built-ins and events the plugin depends on, so a change
+# in Vim surfaces here instead of at runtime.
+api:
+	@sh test/api.sh
+
+check: lint conformance api test-vim
 
 # Install into a pack directory (see :help package-create).
 install:

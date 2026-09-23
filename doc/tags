@@ -11,6 +11,7 @@ g:zen_linenr	zen.txt	/*g:zen_linenr*
 g:zen_margin_bottom	zen.txt	/*g:zen_margin_bottom*
 g:zen_margin_top	zen.txt	/*g:zen_margin_top*
 g:zen_width	zen.txt	/*g:zen_width*
+shape	zen-internals.txt	/*shape*
 zen	zen.txt	/*zen*
 zen#Close()	zen.txt	/*zen#Close()*
 zen#Open()	zen.txt	/*zen#Open()*
@@ -31,6 +32,7 @@ zen-internals-messages	zen-internals.txt	/*zen-internals-messages*
 zen-internals-options	zen-internals.txt	/*zen-internals-options*
 zen-internals-resize	zen-internals.txt	/*zen-internals-resize*
 zen-internals-timers	zen-internals.txt	/*zen-internals-timers*
+zen-internals-version	zen-internals.txt	/*zen-internals-version*
 zen-internals-windows	zen-internals.txt	/*zen-internals-windows*
 zen-internals.txt	zen-internals.txt	/*zen-internals.txt*
 zen-introduction	zen.txt	/*zen-introduction*

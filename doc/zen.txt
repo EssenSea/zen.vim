@@ -42,6 +42,10 @@ check in plugin/zen.vim is legacy Vim script, so on an older Vim it exits
 cleanly with a warning instead of failing on the `:vim9script` command.
 Set |g:zen_disable_legacy_warning| to suppress that warning.
 
+Features that were added after 9.1.0000, such as the 'winfixbuf' option
+(9.1.0147), are probed before use, so the plugin keeps working on the
+earliest supported builds.
+
 The optional |zen-translation| support requires |+multi_lang| and the
 |gettext()| machinery.
 

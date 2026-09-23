@@ -11,8 +11,19 @@ on [Keep a Changelog](https://keepachangelog.com/).
   Vim script, so loading the plugin on a Vim older than 9.1.0000 exits
   cleanly with a warning instead of failing on the `:vim9script` command.
   Set `g:zen_disable_legacy_warning` to silence the warning.
+- `test/api.vim` / `make api`: contract tests pinning every Vim built-in,
+  event and option the plugin relies on, plus the shape of the return values
+  it reads (getcurpos, getwininfo, winlayout, winsaveview, maparg, mapnew,
+  hlget/hlset, timer_start).  CI runs them on 9.1.0000, 9.1.1000, 9.1.2000
+  and master, and a weekly schedule re-runs them so a change in Vim itself is
+  reported even when the plugin has not changed.
 
 ### Fixed
+
+- `'winfixbuf'` was added in Vim 9.1.0147, later than the 9.1.0000 minimum,
+  but it was used unconditionally after an earlier clean-up.  It is probed
+  again (HasWinFixBuf()) so the plugin works on the earliest supported
+  builds; the contract test only requires it from 9.1.0147 on.
 
 - A failure part way through opening Zen (for example a window that cannot be
   created, or a throwing BufWinEnter autocommand) used to leave a half-built

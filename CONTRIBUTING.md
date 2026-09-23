@@ -44,9 +44,15 @@ Actions workflow:
 make ci        # or: sh ci.sh
 ```
 
-It runs the conformance checks, the test suite and the benchmarks against the
-Vim in `$PATH`, which must be Vim 9.1.0000 or newer.  Only Vim is supported;
-Neovim is out of scope.
+It runs the conformance checks, the API contract tests, the test suite and the
+benchmarks against the Vim in `$PATH`, which must be Vim 9.1.0000 or newer.
+Only Vim is supported; Neovim is out of scope.
+
+When you start using a new Vim built-in, event or option, add it to
+`test/api.vim` (see `make api`).  That test pins the contract the plugin
+relies on, so a change in Vim is reported in CI instead of at runtime.  Vim
+sometimes adds features after 9.1.0000 (for example 'winfixbuf' arrived in
+9.1.0147); probe such features with `exists()` rather than assuming them.
 
 ## Tests
 
