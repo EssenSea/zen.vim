@@ -1,10 +1,10 @@
-# goyo.vim message catalogue template.
-# Copyright (C) 2026 goyo.vim fork contributors
-# This file is distributed under the same license as the goyo.vim package.
+# zen.vim message catalogue template.
+# Copyright (C) 2026 zen.vim fork contributors
+# This file is distributed under the same license as the zen.vim package.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: goyo.vim 1.0\n"
+"Project-Id-Version: zen.vim 1.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-09-23 12:00+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
@@ -14,6 +14,6 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: autoload/goyo.vim
-msgid "goyo: invalid dimension expression: "
+#: autoload/zen.vim
+msgid "zen: invalid dimension expression: "
 msgstr ""

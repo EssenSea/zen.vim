@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================================
-# goyo.vim package-convention conformance check
+# zen.vim package-convention conformance check
 #
 # Verifies the structural and stylistic rules described in
 #   :help package-create
@@ -24,34 +24,34 @@ check() { # description, shell command
 }
 
 check "package layout (plugin/autoload/doc/tags)" \
-  "[ -f plugin/goyo.vim ] && [ -f autoload/goyo.vim ] && [ -f doc/goyo.txt ] && [ -f doc/goyo-internals.txt ] && [ -s doc/tags ]"
+  "[ -f plugin/zen.vim ] && [ -f autoload/zen.vim ] && [ -f doc/zen.txt ] && [ -f doc/zen-internals.txt ] && [ -s doc/tags ]"
 
 check "plugin is Vim9script" \
-  "head -1 plugin/goyo.vim | grep -q '^vim9script'"
+  "head -1 plugin/zen.vim | grep -q '^vim9script'"
 
 check "autoload is Vim9script" \
-  "head -1 autoload/goyo.vim | grep -q '^vim9script'"
+  "head -1 autoload/zen.vim | grep -q '^vim9script'"
 
 check "plugin loads the implementation with import autoload" \
-  "grep -q \"import autoload '\.\./autoload/goyo\.vim'\" plugin/goyo.vim"
+  "grep -q \"import autoload '\.\./autoload/zen\.vim'\" plugin/zen.vim"
 
-check "plugin avoids legacy goyo# calls (completion excepted)" \
-  "! grep -v '^[[:space:]]*#' plugin/goyo.vim | grep -v 'complete=customlist' | grep -q 'goyo#'"
+check "plugin avoids legacy zen# calls (completion excepted)" \
+  "! grep -v '^[[:space:]]*#' plugin/zen.vim | grep -v 'complete=customlist' | grep -q 'zen#'"
 
 check "autoload exposes a typed API" \
-  "grep -q 'export def Execute(bang: bool, dim: string)' autoload/goyo.vim"
+  "grep -q 'export def Execute(bang: bool, dim: string)' autoload/zen.vim"
 
 check "help first line follows help-writing" \
-  "head -1 doc/goyo.txt | grep -qP '^\\*goyo\\.txt\\*\tFor Vim version'"
+  "head -1 doc/zen.txt | grep -qP '^\\*zen\\.txt\\*\tFor Vim version'"
 
 check "help has the standard modeline" \
-  "tail -1 doc/goyo.txt | grep -q 'vim:tw=78:ts=8:noet:ft=help:norl:'"
+  "tail -1 doc/zen.txt | grep -q 'vim:tw=78:ts=8:noet:ft=help:norl:'"
 
 check "scripts have the editor modeline" \
-  "tail -1 autoload/goyo.vim | grep -q 'vim: ts=8 sts=2 sw=2 et:'"
+  "tail -1 autoload/zen.vim | grep -q 'vim: ts=8 sts=2 sw=2 et:'"
 
 check "messages are translatable and catalogues exist" \
-  "grep -q gettext autoload/goyo.vim && [ -f lang/goyo.pot ] && [ -f lang/en/LC_MESSAGES/goyo.mo ]"
+  "grep -q gettext autoload/zen.vim && [ -f lang/zen.pot ] && [ -f lang/en/LC_MESSAGES/zen.mo ]"
 
 check "Makefile provides check, install and bench targets" \
   "grep -q '^check:' Makefile && grep -q '^install:' Makefile && grep -q '^bench:' Makefile"
@@ -61,6 +61,12 @@ check "project metadata present" \
 
 check "benchmark tooling present" \
   "[ -f test/bench.vim ] && [ -f test/bench.sh ]"
+
+check "no stale goyo identifiers remain (upstream refs excepted)" \
+  "! grep -rn 'goyo_[a-z]\\|goyo#\\|:Goyo\\|<Plug>(goyo\\|GoyoOn\\|GoyoOff' plugin autoload doc test Makefile 2>/dev/null | grep -v 'github.com/junegunn/goyo.vim'"
+
+check "zen namespace is used consistently" \
+  "grep -q 'export def Execute' autoload/zen.vim && grep -q 'complete=customlist,zen#Complete' plugin/zen.vim && grep -q 'zen.Execute' plugin/zen.vim"
 
 check "all source comments are in English" \
   "! grep -rlP '[\x{4e00}-\x{9fff}]' plugin autoload test >/dev/null 2>&1"

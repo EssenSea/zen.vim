@@ -1,10 +1,10 @@
 vim9script
 # ============================================================================
-# goyo.vim unit / integration tests
+# zen.vim unit / integration tests
 #
 # Usage (see test/run.sh):
 #   vim -u NONE -i NONE -N -es --not-a-term \
-#       --cmd 'set rtp^=<plugin-root>' -S test/test_goyo.vim
+#       --cmd 'set rtp^=<plugin-root>' -S test/test_zen.vim
 #
 # Tests use Vim's built-in assertions (assert_equal, assert_true, ...).
 # A failing assertion throws; the runner counts failures and uses that
@@ -18,13 +18,13 @@ var passed = 0
 var failed = 0
 var report_lines: list<string> = []
 
-# Results are collected in a list and written to $GOYO_TEST_OUT.
+# Results are collected in a list and written to $ZEN_TEST_OUT.
 def Report(line: string)
   report_lines->add(line)
 enddef
 
 def FlushReport()
-  var out = getenv('GOYO_TEST_OUT')
+  var out = getenv('ZEN_TEST_OUT')
   if !empty(out)
     writefile(report_lines, out)
   endif
@@ -32,8 +32,8 @@ enddef
 
 # Discard scratch state so tests do not leak modified buffers or windows.
 def ResetScratch()
-  if goyo#IsActive()
-    goyo#Execute(true, '')
+  if zen#IsActive()
+    zen#Execute(true, '')
   endif
   silent! only!
   silent! tabonly!
@@ -68,17 +68,17 @@ def Setup()
   set nomore noswapfile nobackup nowritebackup
   set columns=80 lines=24
   # Make sure the plugin is loaded.
-  if !exists(':Goyo')
-    runtime plugin/goyo.vim
+  if !exists(':Zen')
+    runtime plugin/zen.vim
   endif
-  if goyo#IsActive()
-    goyo#Execute(true, '')
+  if zen#IsActive()
+    zen#Execute(true, '')
   endif
 enddef
 
 def Teardown()
-  if goyo#IsActive()
-    goyo#Execute(true, '')
+  if zen#IsActive()
+    zen#Execute(true, '')
   endif
 enddef
 
@@ -96,77 +96,77 @@ Setup()
 # ---------------------------------------------------------------------------
 # 1. Plugin loading and commands
 # ---------------------------------------------------------------------------
-Test('plugin defines :Goyo command', () => {
-  assert_equal(2, exists(':Goyo'))
+Test('plugin defines :Zen command', () => {
+  assert_equal(2, exists(':Zen'))
 })
 
-Test('goyo#Execute is an autoload function', () => {
-  assert_true(exists('*goyo#Execute') > 0)
+Test('zen#Execute is an autoload function', () => {
+  assert_true(exists('*zen#Execute') > 0)
 })
 
-Test('goyo#IsActive is exported', () => {
-  assert_true(exists('*goyo#IsActive') > 0)
+Test('zen#IsActive is exported', () => {
+  assert_true(exists('*zen#IsActive') > 0)
 })
 
 # ---------------------------------------------------------------------------
-# 2. Geometry parsing (enter through the public API, then inspect t:goyo_dim)
+# 2. Geometry parsing (enter through the public API, then inspect t:zen_dim)
 # ---------------------------------------------------------------------------
-Test('default dimensions use g:goyo_width (80)', () => {
-  g:goyo_width = 80
-  g:goyo_height = '85%'
-  goyo#Execute(false, '')
-  assert_true(goyo#IsActive())
-  var dim = t:goyo_dim
+Test('default dimensions use g:zen_width (80)', () => {
+  g:zen_width = 80
+  g:zen_height = '85%'
+  zen#Execute(false, '')
+  assert_true(zen#IsActive())
+  var dim = t:zen_dim
   assert_equal(80, dim.width)
   assert_equal(24 * 85 / 100, dim.height)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 Test('percentage expression 100%x50%', () => {
-  goyo#Execute(false, '100%x50%')
-  var dim = t:goyo_dim
+  zen#Execute(false, '100%x50%')
+  var dim = t:zen_dim
   assert_equal(80, dim.width)
   assert_equal(12, dim.height)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 Test('offset expression 120x20', () => {
-  goyo#Execute(false, '120x20')
-  var dim = t:goyo_dim
+  zen#Execute(false, '120x20')
+  var dim = t:zen_dim
   assert_equal(120, dim.width)
   assert_equal(20, dim.height)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 Test('invalid expression is rejected (not active)', () => {
-  goyo#Execute(false, 'definitely-not-a-size')
-  assert_false(goyo#IsActive())
+  zen#Execute(false, 'definitely-not-a-size')
+  assert_false(zen#IsActive())
 })
 
 # ---------------------------------------------------------------------------
 # 3. Session activation / deactivation
 # ---------------------------------------------------------------------------
 Test('activating creates 5 windows (master + 4 pads)', () => {
-  goyo#Execute(false, '80x20')
-  assert_true(goyo#IsActive())
+  zen#Execute(false, '80x20')
+  assert_true(zen#IsActive())
   assert_equal(5, winnr('$'))
-  assert_equal(4, len(t:goyo_pads))
-  goyo#Execute(true, '')
+  assert_equal(4, len(t:zen_pads))
+  zen#Execute(true, '')
 })
 
 Test('deactivating removes augroup and pads', () => {
-  goyo#Execute(false, '80x20')
-  goyo#Execute(true, '')
-  assert_false(goyo#IsActive())
+  zen#Execute(false, '80x20')
+  zen#Execute(true, '')
+  assert_false(zen#IsActive())
   assert_equal(1, winnr('$'))
   assert_equal(1, tabpagenr('$'))
 })
 
-Test('toggle: :Goyo then :Goyo leaves', () => {
-  goyo#Execute(false, '80x20')
-  assert_true(goyo#IsActive())
-  goyo#Execute(false, '')
-  assert_false(goyo#IsActive())
+Test('toggle: :Zen then :Zen leaves', () => {
+  zen#Execute(false, '80x20')
+  assert_true(zen#IsActive())
+  zen#Execute(false, '')
+  assert_false(zen#IsActive())
 })
 
 # ---------------------------------------------------------------------------
@@ -177,12 +177,12 @@ Test('global options are restored on leave', () => {
   set showtabline=2
   set ruler
   set sidescroll=5
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   assert_equal(0, &laststatus)
   assert_equal(0, &showtabline)
   assert_false(&ruler)
   assert_equal(1, &sidescroll)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   assert_equal(2, &laststatus)
   assert_equal(2, &showtabline)
   assert_true(&ruler)
@@ -197,10 +197,10 @@ Test('winwidth/winheight restored in correct order', () => {
   const save_wh = &winheight
   const save_wmh = &winminheight
   set winminwidth=2 winminheight=1
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   assert_equal(1, &winminwidth)
   assert_equal(1, &winwidth)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   assert_equal(2, &winminwidth)
   assert_equal(save_ww, &winwidth)
   assert_equal(save_wmh, &winminheight)
@@ -215,62 +215,62 @@ Test('fillchars and guioptions-like string options are restored', () => {
   var saved = &fillchars
   set fillchars=vert:\ ,stl:\ ,stlnc:\ 
   var during_on = ''
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   during_on = &fillchars
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   assert_equal(saved, &fillchars)
   assert_true(during_on =~ 'stl:')
 })
 
 Test('highlight groups are restored exactly on leave', () => {
   # Give Normal a background and a group with an attribute, then check that
-  # entering and leaving Goyo returns them to the previous state.
+  # entering and leaving Zen returns them to the previous state.
   execute 'highlight Normal guibg=#202020'
   execute 'highlight StatusLine guifg=Black guibg=Yellow gui=bold'
   execute 'highlight StatusLineNC guifg=Grey gui=italic cterm=underline'
   var before_sl = hlget('StatusLine', true)
   var before_slnc = hlget('StatusLineNC', true)
-  goyo#Execute(false, '80x20')
-  goyo#Execute(true, '')
+  zen#Execute(false, '80x20')
+  zen#Execute(true, '')
   assert_equal(before_sl, hlget('StatusLine', true))
   assert_equal(before_slnc, hlget('StatusLineNC', true))
 })
 
-Test('highlight attribute added by Goyo is removed again', () => {
+Test('highlight attribute added by Zen is removed again', () => {
   execute 'highlight ColorColumn guibg=LightRed'
   var before = hlget('ColorColumn', true)
-  goyo#Execute(false, '80x20')
-  goyo#Execute(true, '')
+  zen#Execute(false, '80x20')
+  zen#Execute(true, '')
   assert_equal(before, hlget('ColorColumn', true))
 })
 
 # ---------------------------------------------------------------------------
 # 5. Buffer preservation
 # ---------------------------------------------------------------------------
-Test(':edit another file during Goyo survives exit', () => {
+Test(':edit another file during Zen survives exit', () => {
   var tmp = tempname()
   writefile(['hello'], tmp)
   execute 'edit ' .. tmp
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   var tmp2 = tempname()
   writefile(['world'], tmp2)
   execute 'edit ' .. tmp2
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   assert_equal(tmp2, bufname('%'))
   silent! execute 'bwipeout! ' .. tmp
   silent! execute 'bwipeout! ' .. tmp2
 })
 
-Test('leaving Goyo returns to the original tab and window', () => {
-  # Build a second tab with two windows and enter Goyo from the right one.
+Test('leaving Zen returns to the original tab and window', () => {
+  # Build a second tab with two windows and enter Zen from the right one.
   tabnew
   vsplit
   wincmd l
   var orig_winid = win_getid()
   var orig_tab = tabpagenr()
-  goyo#Execute(false, '80x20')
-  assert_true(goyo#IsActive())
-  goyo#Execute(true, '')
+  zen#Execute(false, '80x20')
+  assert_true(zen#IsActive())
+  zen#Execute(true, '')
   assert_equal(orig_tab, tabpagenr())
   assert_equal(orig_winid, win_getid())
   assert_equal(2, tabpagenr('$'))
@@ -280,7 +280,7 @@ Test('leaving Goyo returns to the original tab and window', () => {
 # 6. Confining content windows (ConfineWindows)
 # ---------------------------------------------------------------------------
 Test('help window stays within content column', () => {
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   help
   # Locate the help window.
   var helpwin = 0
@@ -292,101 +292,101 @@ Test('help window stays within content column', () => {
   assert_true(helpwin > 0)
   # The help window must not span the whole screen.
   assert_true(winwidth(helpwin) < &columns)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 # ---------------------------------------------------------------------------
 # 7. Robustness: repeated calls and invalid input
 # ---------------------------------------------------------------------------
 Test('idempotent force-off when not active', () => {
-  goyo#Execute(true, '')
-  goyo#Execute(true, '')
-  assert_false(goyo#IsActive())
+  zen#Execute(true, '')
+  zen#Execute(true, '')
+  assert_false(zen#IsActive())
 })
 
 Test('resizing an active session', () => {
-  goyo#Execute(false, '80x20')
-  goyo#Execute(false, '60x10')
-  var dim = t:goyo_dim
+  zen#Execute(false, '80x20')
+  zen#Execute(false, '60x10')
+  var dim = t:zen_dim
   assert_equal(60, dim.width)
   assert_equal(10, dim.height)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 # ---------------------------------------------------------------------------
 # 8. Geometry bounds and parsing robustness
 # ---------------------------------------------------------------------------
 Test('oversized dimensions are clamped to screen', () => {
-  goyo#Execute(false, '9999x9999')
-  var dim = t:goyo_dim
+  zen#Execute(false, '9999x9999')
+  var dim = t:zen_dim
   assert_true(dim.width <= &columns)
   assert_true(dim.height <= &lines)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 Test('negative offset expression parses', () => {
-  goyo#Execute(false, '80-10x20+2')
-  var dim = t:goyo_dim
+  zen#Execute(false, '80-10x20+2')
+  var dim = t:zen_dim
   assert_equal(70, dim.width)
   assert_equal(22, dim.height)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 Test('percent offset expression parses', () => {
-  goyo#Execute(false, '50%+5x50%-2')
-  var dim = t:goyo_dim
+  zen#Execute(false, '50%+5x50%-2')
+  var dim = t:zen_dim
   assert_equal(40 + 5, dim.width)
   assert_equal(12 - 2, dim.height)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 Test('empty dimension uses configured defaults', () => {
-  g:goyo_width = 100
-  g:goyo_height = '50%'
-  goyo#Execute(false, '')
-  assert_equal(100, t:goyo_dim.width)
-  assert_equal(12, t:goyo_dim.height)
-  goyo#Execute(true, '')
+  g:zen_width = 100
+  g:zen_height = '50%'
+  zen#Execute(false, '')
+  assert_equal(100, t:zen_dim.width)
+  assert_equal(12, t:zen_dim.height)
+  zen#Execute(true, '')
 })
 
 # ---------------------------------------------------------------------------
 # 9. Callbacks and user events
 # ---------------------------------------------------------------------------
-Test('g:goyo_callbacks fire on enter and leave', () => {
+Test('g:zen_callbacks fire on enter and leave', () => {
   var calls: list<string> = []
-  g:goyo_callbacks = [
+  g:zen_callbacks = [
     () => calls->add('enter'),
     () => calls->add('leave'),
   ]
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   assert_equal(['enter'], calls)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   assert_equal(['enter', 'leave'], calls)
-  unlet g:goyo_callbacks
+  unlet g:zen_callbacks
 })
 
-Test('invalid g:goyo_callbacks entries are ignored', () => {
-  g:goyo_callbacks = ['not-a-funcref', 42]
-  goyo#Execute(false, '80x20')
-  assert_true(goyo#IsActive())
-  goyo#Execute(true, '')
-  unlet g:goyo_callbacks
+Test('invalid g:zen_callbacks entries are ignored', () => {
+  g:zen_callbacks = ['not-a-funcref', 42]
+  zen#Execute(false, '80x20')
+  assert_true(zen#IsActive())
+  zen#Execute(true, '')
+  unlet g:zen_callbacks
 })
 
-Test('User GoyoEnter/GoyoLeave autocmds fire', () => {
+Test('User ZenEnter/ZenLeave autocmds fire', () => {
   var log: list<string> = []
-  augroup goyo_test_events
+  augroup zen_test_events
     autocmd!
-    autocmd User GoyoEnter call add(g:test_evt, 'enter')
-    autocmd User GoyoLeave call add(g:test_evt, 'leave')
+    autocmd User ZenEnter call add(g:test_evt, 'enter')
+    autocmd User ZenLeave call add(g:test_evt, 'leave')
   augroup END
   g:test_evt = []
-  goyo#Execute(false, '80x20')
-  goyo#Execute(true, '')
-  augroup goyo_test_events
+  zen#Execute(false, '80x20')
+  zen#Execute(true, '')
+  augroup zen_test_events
     autocmd!
   augroup END
-  augroup! goyo_test_events
+  augroup! zen_test_events
   assert_equal(['enter', 'leave'], g:test_evt)
   unlet g:test_evt
 })
@@ -394,25 +394,25 @@ Test('User GoyoEnter/GoyoLeave autocmds fire', () => {
 # ---------------------------------------------------------------------------
 # 10. Line-number option
 # ---------------------------------------------------------------------------
-Test('g:goyo_linenr=1 keeps numbers', () => {
+Test('g:zen_linenr=1 keeps numbers', () => {
   set number
-  g:goyo_linenr = 1
-  goyo#Execute(false, '80x20')
+  g:zen_linenr = 1
+  zen#Execute(false, '80x20')
   # The content window keeps 'number'.
-  execute ':' .. win_id2win(t:goyo_winid) .. 'wincmd w'
+  execute ':' .. win_id2win(t:zen_winid) .. 'wincmd w'
   assert_true(&number)
-  goyo#Execute(true, '')
-  unlet g:goyo_linenr
+  zen#Execute(true, '')
+  unlet g:zen_linenr
   set nonumber
 })
 
 Test('default hides numbers in content window', () => {
   set number
-  unlet! g:goyo_linenr
-  goyo#Execute(false, '80x20')
-  execute ':' .. win_id2win(t:goyo_winid) .. 'wincmd w'
+  unlet! g:zen_linenr
+  zen#Execute(false, '80x20')
+  execute ':' .. win_id2win(t:zen_winid) .. 'wincmd w'
   assert_false(&number)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   set nonumber
 })
 
@@ -422,10 +422,10 @@ Test('default hides numbers in content window', () => {
 Test('temporary <C-w> mappings are installed and removed', () => {
   var before = maparg('<C-w>', 'n')
   var before_lt = maparg('<C-w><lt>', 'n')
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   assert_false(empty(maparg('<C-w>R', 'n')))
   assert_false(empty(maparg('<C-w>=', 'n')))
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   assert_true(empty(maparg('<C-w>R', 'n')))
   assert_true(empty(maparg('<C-w>=', 'n')))
 })
@@ -437,21 +437,21 @@ Test('normal vsplit inside content column is preserved', () => {
   var tmp = tempname()
   writefile(['a'], tmp)
   execute 'edit ' .. tmp
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   var tmp2 = tempname()
   writefile(['b'], tmp2)
   execute 'vsplit ' .. tmp2
   # master + new split + 4 pads = 6
   assert_equal(6, winnr('$'))
-  goyo#Execute(true, '')
-  # Both content windows survive leaving Goyo.
+  zen#Execute(true, '')
+  # Both content windows survive leaving Zen.
   assert_equal(2, winnr('$'))
   silent! execute 'bwipeout! ' .. tmp
   silent! execute 'bwipeout! ' .. tmp2
 })
 
 Test('ConfineWindows brings full-width window back into content column', () => {
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   # Directly open a full-width window.
   topleft new
   # ConfineWindows() should be driven by the autocommand; give it a chance
@@ -465,81 +465,81 @@ Test('ConfineWindows brings full-width window back into content column', () => {
   endfor
   # Apart from the top/bottom pads, no window should span the screen.
   assert_true(outside <= 2)
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
 # ---------------------------------------------------------------------------
 # 13. Plugin layer and namespace API (import autoload)
 # ---------------------------------------------------------------------------
 Test('plugin defines <Plug> mappings', () => {
-  assert_false(empty(maparg('<Plug>(goyo-off)', 'n')))
-  assert_false(empty(maparg('<Plug>(goyo-resize)', 'n')))
+  assert_false(empty(maparg('<Plug>(zen-off)', 'n')))
+  assert_false(empty(maparg('<Plug>(zen-resize)', 'n')))
 })
 
 Test('plugin does not clobber user <C-w> mappings by default', () => {
   # The plugin must not set <C-w> mappings at load time.
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   # Just check that nothing is left behind.
-  assert_true(empty(maparg('<C-w>R', 'n')) || !goyo#IsActive())
+  assert_true(empty(maparg('<C-w>R', 'n')) || !zen#IsActive())
 })
 
-Test('goyo#IsActive / goyo#Pads compatibility names exist', () => {
-  assert_true(exists('*goyo#IsActive') > 0)
-  assert_true(exists('*goyo#Pads') > 0)
-  assert_true(exists('*goyo#Close') > 0)
-  assert_true(exists('*goyo#Resize') > 0)
-  assert_true(exists('*goyo#Complete') > 0)
+Test('zen#IsActive / zen#Pads compatibility names exist', () => {
+  assert_true(exists('*zen#IsActive') > 0)
+  assert_true(exists('*zen#Pads') > 0)
+  assert_true(exists('*zen#Close') > 0)
+  assert_true(exists('*zen#Resize') > 0)
+  assert_true(exists('*zen#Complete') > 0)
 })
 
-Test('goyo#Pads returns empty when inactive', () => {
-  goyo#Execute(true, '')
-  assert_equal({}, goyo#Pads())
+Test('zen#Pads returns empty when inactive', () => {
+  zen#Execute(true, '')
+  assert_equal({}, zen#Pads())
 })
 
-Test('goyo#Pads returns four pads when active', () => {
-  goyo#Execute(false, '80x20')
-  var pads = goyo#Pads()
+Test('zen#Pads returns four pads when active', () => {
+  zen#Execute(false, '80x20')
+  var pads = zen#Pads()
   assert_equal(4, len(pads))
   for k in ['l', 'r', 't', 'b']
     assert_true(has_key(pads, k))
     assert_true(bufexists(pads[k]))
   endfor
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
 })
 
-Test('goyo#Close closes an active session', () => {
-  goyo#Execute(false, '80x20')
-  assert_true(goyo#IsActive())
-  goyo#Close()
-  assert_false(goyo#IsActive())
+Test('zen#Close closes an active session', () => {
+  zen#Execute(false, '80x20')
+  assert_true(zen#IsActive())
+  zen#Close()
+  assert_false(zen#IsActive())
 })
 
-Test('goyo#Resize is a no-op when inactive', () => {
-  goyo#Execute(true, '')
-  goyo#Resize()
-  assert_false(goyo#IsActive())
+Test('zen#Resize is a no-op when inactive', () => {
+  zen#Execute(true, '')
+  zen#Resize()
+  assert_false(zen#IsActive())
 })
 
-Test('goyo#Complete returns candidates and is well formed', () => {
-  var items = goyo#Complete('8', 'Goyo 8', 6)
+Test('zen#Complete returns candidates and is well formed', () => {
+  var items = zen#Complete('8', 'Zen 8', 6)
   assert_true(type(items) == v:t_list)
   assert_true(len(items) > 0)
   assert_true(index(items, '80') >= 0)
 })
 
-Test('<Plug>(goyo-off) leaves Goyo', () => {
-  goyo#Execute(false, '80x20')
-  assert_true(goyo#IsActive())
-  execute "normal \<Plug>(goyo-off)"
-  assert_false(goyo#IsActive())
+Test('<Plug>(zen-off) leaves Zen', () => {
+  zen#Execute(false, '80x20')
+  assert_true(zen#IsActive())
+  execute "normal \<Plug>(zen-off)"
+  assert_false(zen#IsActive())
 })
 
-Test('<Plug>(goyo-resize) re-applies dimensions', () => {
-  goyo#Execute(false, '80x20')
-  var before = get(t:, 'goyo_dim', {})
-  execute "normal \<Plug>(goyo-resize)"
-  assert_equal(before, get(t:, 'goyo_dim', {}))
-  goyo#Execute(true, '')
+Test('<Plug>(zen-resize) re-applies dimensions', () => {
+  zen#Execute(false, '80x20')
+  var before = get(t:, 'zen_dim', {})
+  execute "normal \<Plug>(zen-resize)"
+  assert_equal(before, get(t:, 'zen_dim', {}))
+  zen#Execute(true, '')
 })
 
 # ---------------------------------------------------------------------------
@@ -548,7 +548,7 @@ Test('<Plug>(goyo-resize) re-applies dimensions', () => {
 
 Teardown()
 
-Report(printf('goyo tests: %d passed, %d failed', passed, failed))
+Report(printf('zen tests: %d passed, %d failed', passed, failed))
 
 # Exit status: number of failures, convenient for CI.
 FlushReport()

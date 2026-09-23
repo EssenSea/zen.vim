@@ -1,150 +1,150 @@
-*goyo.txt*	For Vim version 9.1.	Last change: 2026 Sep 23
+*zen.txt*	For Vim version 9.1.	Last change: 2026 Sep 23
 
 
-		  VIM REFERENCE MANUAL	  by goyo.vim contributors
+		  VIM REFERENCE MANUAL	  by zen.vim contributors
 
-Distraction-free writing mode	*goyo* *goyo.vim*
+Distraction-free writing mode	*zen* *zen.vim*
 ==============================================================================
 
-1. Introduction	*goyo-introduction*
+1. Introduction	*zen-introduction*
 
-goyo.vim provides a distraction-free writing environment for Vim.  The text
+zen.vim provides a distraction-free writing environment for Vim.  The text
 of the current window is centred on the screen, the surrounding space is
 filled by automatically sized padding windows, and interface elements such as
-the status line, line numbers and the color column are hidden while Goyo is
+the status line, line numbers and the color column are hidden while Zen is
 active.
 
 The plugin is written in Vim9script and is organised as a standard Vim
-package.  See |goyo-installation| for how to install it and |goyo-command| for
+package.  See |zen-installation| for how to install it and |zen-command| for
 the commands it provides.
 
 ==============================================================================
-2. Installation	*goyo-installation*
+2. Installation	*zen-installation*
 
 Use a plugin manager, or install manually by adding this directory to
 'runtimepath': >vim
 
-set runtimepath+=/path/to/goyo.vim
+set runtimepath+=/path/to/zen.vim
 <
-Vim loads |plugin/goyo.vim| at startup and defines the |:Goyo| command.  To
+Vim loads |plugin/zen.vim| at startup and defines the |:Zen| command.  To
 load the plugin only on demand, install it under 'packpath' and use
 |:packadd|: >vim
 
-packadd goyo
+packadd zen
 <
 
-*goyo-requirements*
+*zen-requirements*
 Requirements: ~
 Vim 9.1.0000 or newer with the |+vim9script| feature.  If the feature is
 missing the plugin prints a message and does not load.
 
-The optional |goyo-translation| support requires |+multi_lang| and the
+The optional |zen-translation| support requires |+multi_lang| and the
 |gettext()| machinery.
 
 ==============================================================================
-3. Usage						*goyo-command*
+3. Usage						*zen-command*
 
-							*:Goyo*
-:Goyo [dimensions]
-		Enter Goyo.  Run |:Goyo| again to leave.
+							*:Zen*
+:Zen [dimensions]
+		Enter Zen.  Run |:Zen| again to leave.
 		[dimensions] sets the size of the content area:
 			{width}			width in columns
 			{width}%		width as a percentage
 			{width}x{height}	width and height
 			{width}%x{height}%	both as percentages
 		A '+' or '-' may follow a width or height to offset the
-		content within the available space, e.g. `:Goyo 90-10x50%+2`.
+		content within the available space, e.g. `:Zen 90-10x50%+2`.
 
-:Goyo [dimensions]
-		While Goyo is active, re-apply the given dimensions.
-:Goyo!			Leave Goyo unconditionally, ignoring errors.
+:Zen [dimensions]
+		While Zen is active, re-apply the given dimensions.
+:Zen!			Leave Zen unconditionally, ignoring errors.
 
 Examples: >vim
 
-	:Goyo			" use the configured defaults
-	:Goyo 80		" 80 columns wide
-	:Goyo 80x20	" 80 columns by 20 lines
-	:Goyo 50%x70%	" 50% wide, 70% high
-	:Goyo 90-10
+	:Zen			" use the configured defaults
+	:Zen 80		" 80 columns wide
+	:Zen 80x20	" 80 columns by 20 lines
+	:Zen 50%x70%	" 50% wide, 70% high
+	:Zen 90-10
 <
 
 ==============================================================================
-4. Options						*goyo-options*
+4. Options						*zen-options*
 
-						*g:goyo_width*
-g:goyo_width		number or string, default 80 ~
+						*g:zen_width*
+g:zen_width		number or string, default 80 ~
 			Default width of the content window, as a number of
 			columns or a percentage string.
 
-						*g:goyo_height*
-g:goyo_height		number or string, default '85%' ~
+						*g:zen_height*
+g:zen_height		number or string, default '85%' ~
 			Default height of the content window.
 
-						*g:goyo_margin_top*
-g:goyo_margin_top	number or string, default 4 ~
-			Top margin.  When |g:goyo_margin_top| or
-			|g:goyo_margin_bottom| is set, these take precedence
-			over |g:goyo_height|.
+						*g:zen_margin_top*
+g:zen_margin_top	number or string, default 4 ~
+			Top margin.  When |g:zen_margin_top| or
+			|g:zen_margin_bottom| is set, these take precedence
+			over |g:zen_height|.
 
-						*g:goyo_margin_bottom*
-g:goyo_margin_bottom	number or string, default 4 ~
+						*g:zen_margin_bottom*
+g:zen_margin_bottom	number or string, default 4 ~
 			Bottom margin.
 
-						*g:goyo_bg*
-g:goyo_bg		string, default 'black' ~
+						*g:zen_bg*
+g:zen_bg		string, default 'black' ~
 			Fallback background colour used when the background
 			colour of the |hl-Normal| group cannot be determined.
 
-						*g:goyo_linenr*
-g:goyo_linenr		boolean, default 0 ~
+						*g:zen_linenr*
+g:zen_linenr		boolean, default 0 ~
 			When 1, keep line numbers visible in the content
 			window.  By default they are hidden.
 
-						*g:goyo_decoration_elements*
-g:goyo_decoration_elements ~
+						*g:zen_decoration_elements*
+g:zen_decoration_elements ~
 			list of strings, default ['~'] ~
 			Elements used to decorate the padding windows.
 
-						*g:goyo_decoration_density*
-g:goyo_decoration_density ~
+						*g:zen_decoration_density*
+g:zen_decoration_density ~
 			number, default 0.0 ~
 			Probability, between 0.0 and 1.0, that a cell
 			receives a decoration element.
 
-						*g:goyo_callbacks*
-g:goyo_callbacks	list, default not set ~
+						*g:zen_callbacks*
+g:zen_callbacks	list, default not set ~
 			A list of two |Funcref|s: the first is called after
-			entering Goyo, the second after leaving it.
+			entering Zen, the second after leaving it.
 
 ==============================================================================
-5. Autocommands	*goyo-autocmd*
+5. Autocommands	*zen-autocmd*
 
-*GoyoEnter*
-GoyoEnter|User| event fired after entering Goyo.
+*ZenEnter*
+ZenEnter|User| event fired after entering Zen.
 
-*GoyoLeave*
-GoyoLeave|User| event fired after leaving Goyo.
+*ZenLeave*
+ZenLeave|User| event fired after leaving Zen.
 
 Example: >vim
 
-autocmd User GoyoEnter call MyEnterGoyo()
-autocmd User GoyoLeave call MyLeaveGoyo()
+autocmd User ZenEnter call MyEnterZen()
+autocmd User ZenLeave call MyLeaveZen()
 <
 
 ==============================================================================
-6. Mappings	*goyo-mappings*
+6. Mappings	*zen-mappings*
 
 The plugin sets no global key mappings by itself.  It provides two <Plug>
 mappings that users may bind: >
 
-<Plug>(goyo-off)leave Goyo
-<Plug>(goyo-resize)re-apply the current dimensions
+<Plug>(zen-off)	leave Zen
+<Plug>(zen-resize)	re-apply the current dimensions
 <
 Example: >vim
 
-nmap <Leader>z <Plug>(goyo-off)
+nmap <Leader>z <Plug>(zen-off)
 <
-While Goyo is active the following local mappings are installed, unless the
+While Zen is active the following local mappings are installed, unless the
 key is already mapped; they are removed again on leaving:
 
 <C-w>R <C-w>H <C-w>J <C-w>K <C-w>L <C-w>| <C-w>_disabled
@@ -153,43 +153,43 @@ key is already mapped; they are removed again on leaving:
 <C-w>+ <C-w>-adjust the height
 
 ==============================================================================
-7. Notes	*goyo-notes*
+7. Notes	*zen-notes*
 
-*goyo-confine*
+*zen-confine*
 Some commands, such as |:help|, |:tag| and |:copen|, open a window with
 `:topleft split` or `:botright split`.  Such a window spans the whole tab and
-would destroy the left and right margins.  When Goyo is active, any window
+would destroy the left and right margins.  When Zen is active, any window
 that lies outside the content column is closed and its buffer is re-opened
 with an ordinary `:split` from the master window, so that it stays inside the
 content column.
 
-The following plugins are temporarily disabled while Goyo is active and
+The following plugins are temporarily disabled while Zen is active and
 restored afterwards: vim-airline, lightline.vim, vim-powerline,
 vim-gitgutter and vim-signify.
 
 ==============================================================================
-8. Translation	*goyo-translation*
+8. Translation	*zen-translation*
 
 Messages can be translated using |gettext()|.  The package identifier is
-"goyo" and the catalogues live under |goyo-installation| as: >
+"zen" and the catalogues live under |zen-installation| as: >
 
-lang/<lang_id>/LC_MESSAGES/goyo.mo
+lang/<lang_id>/LC_MESSAGES/zen.mo
 <
-The template is `lang/goyo.pot`.  See |package-translation| for how to create
+The template is `lang/zen.pot`.  See |package-translation| for how to create
 the `.po` and `.mo` files.
 
 ==============================================================================
-9. Development	*goyo-development*
+9. Development	*zen-development*
 
 The source is organised as a Vim package: >
-	plugin/goyo.vim		loads the plugin, defines :Goyo
-	autoload/goyo.vim	the implementation (Vim9script)
-	doc/goyo.txt		this help file
-	doc/goyo-internals.txt	implementation notes
+	plugin/zen.vim		loads the plugin, defines :Zen
+	autoload/zen.vim	the implementation (Vim9script)
+	doc/zen.txt		this help file
+	doc/zen-internals.txt	implementation notes
 	lang/			message catalogues
 	test/			test suite
 <
-See |goyo-internals| for the built-in mechanisms the implementation uses.
+See |zen-internals| for the built-in mechanisms the implementation uses.
 Run the test suite with: >
 
 make test
@@ -200,7 +200,7 @@ sh test/run.sh vim
 <
 
 ==============================================================================
-License: MIT, see the LICENSE file in the distribution.  goyo.vim is a fork of
+License: MIT, see the LICENSE file in the distribution.  zen.vim is a fork of
 the original plugin by Junegunn Choi.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

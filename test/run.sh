@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================================
-# goyo.vim test runner
+# zen.vim test runner
 #
 # Usage:
 #   sh test/run.sh [vim|nvim]       (default: vim)
@@ -21,7 +21,7 @@ OUT=$(mktemp)
 PROBE=$OUT.probe.$$
 trap 'rm -f "$OUT" "$PROBE" "$OUT.probe"' EXIT INT HUP TERM
 
-export GOYO_TEST_OUT="$OUT"
+export ZEN_TEST_OUT="$OUT"
 
 # Vim9script capability probe: the script writes its result and quits.
 cat > "$PROBE" <<PEOF
@@ -58,7 +58,7 @@ case "$ENGINE" in
     fi
     "$VIM_BIN" -u NONE -i NONE -N -es --not-a-term \
         --cmd "set runtimepath^=$ROOT" \
-        -S "$ROOT/test/test_goyo.vim" </dev/null || status=$?
+        -S "$ROOT/test/test_zen.vim" </dev/null || status=$?
     ;;
   nvim)
     NVIM_BIN=${NVIM:-nvim}
@@ -69,7 +69,7 @@ case "$ENGINE" in
     fi
     "$NVIM_BIN" --headless -u NONE -i NONE \
         --cmd "set runtimepath^=$ROOT" \
-        -S "$ROOT/test/test_goyo.vim" </dev/null || status=$?
+        -S "$ROOT/test/test_zen.vim" </dev/null || status=$?
     ;;
   *)
     echo "usage: $0 [vim|nvim]" >&2

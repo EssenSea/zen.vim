@@ -1,11 +1,11 @@
 vim9script
 # ============================================================================
-# goyo.vim micro-benchmarks
+# zen.vim micro-benchmarks
 #
 # Run with:  sh test/bench.sh
 #
 # Prints median/min/max wall time per operation.  Not part of the test suite.
-# The result is written to $GOYO_BENCH_OUT when set.
+# The result is written to $ZEN_BENCH_OUT when set.
 # ============================================================================
 
 set nocompatible
@@ -35,24 +35,24 @@ def Stat(name: string, reps: number, rounds: number, Fn: func)
 enddef
 
 def OnOff()
-  goyo#Execute(false, '80x20')
-  goyo#Execute(true, '')
+  zen#Execute(false, '80x20')
+  zen#Execute(true, '')
 enddef
 
 try
-Stat('GoyoOn + GoyoOff', 20, 11, OnOff)
+Stat('ZenOn + ZenOff', 20, 11, OnOff)
 
-goyo#Execute(false, '80x20')
-Stat('Resize (active session)', 100, 11, () => goyo#Resize())
-goyo#Execute(true, '')
+zen#Execute(false, '80x20')
+Stat('Resize (active session)', 100, 11, () => zen#Resize())
+zen#Execute(true, '')
 
-# Open a full-width window while Goyo is active; ConfineWindows() has to
+# Open a full-width window while Zen is active; ConfineWindows() has to
 # pull it back into the content column.  A one-line scratch buffer is used so
 # the benchmark does not depend on the size of the help files.
 def WithStray()
-  goyo#Execute(false, '80x20')
+  zen#Execute(false, '80x20')
   topleft new
-  goyo#Execute(true, '')
+  zen#Execute(true, '')
   silent! only!
   silent! enew!
   setlocal nomodified
@@ -62,9 +62,9 @@ catch
   Report('benchmark aborted: ' .. v:exception)
 endtry
 
-var out = getenv('GOYO_BENCH_OUT')
+var out = getenv('ZEN_BENCH_OUT')
 if empty(out)
-  out = '/tmp/goyo-bench.txt'
+  out = '/tmp/zen-bench.txt'
 endif
 writefile(lines, out)
 qall!

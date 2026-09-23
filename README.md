@@ -1,9 +1,10 @@
-# goyo.vim
+# zen.vim
 
 Distraction-free writing mode for Vim — 无干扰写作模式。
 
-This repository is a fork of [goyo.vim](https://github.com/junegunn/goyo.vim)
-that rewrites the implementation in **Vim9script** and organises the project
+This repository is a fork of
+[goyo.vim](https://github.com/junegunn/goyo.vim) that rewrites the
+implementation in **Vim9script** and organises the project
 as a standard Vim package, following the conventions used by Vim's bundled
 plugins (`:help package-create`).
 
@@ -31,38 +32,39 @@ Add the repository to `'runtimepath'`, or install it as a package:
 
 ```vim
 " option A: plain runtimepath
-set runtimepath+=/path/to/goyo.vim
+set runtimepath+=/path/to/zen.vim
 
 " option B: as a package (recommended for :packadd)
-"   ~/.vim/pack/goyo/start/goyo/  <- clone here
-packadd goyo
+"   ~/.vim/pack/zen/start/zen/  <- clone here
+packadd zen
 ```
 
-`plugin/goyo.vim` defines the `:Goyo` command at startup.
+`plugin/zen.vim` defines the `:Zen` command at startup.
 
 ## Usage
 
 ```vim
-:Goyo            " enter; run again to leave
-:Goyo 80x20      " 80 columns by 20 lines
-:Goyo 50%x70%    " percentages
-:Goyo!           " force leave
+:Zen            " enter; run again to leave
+:Zen 80x20      " 80 columns by 20 lines
+:Zen 50%x70%    " percentages
+:Zen!           " force leave
 ```
 
-See `:help goyo` for the full manual.
+See `:help zen` for the full manual.
 
 ## Layout
 
 ```
-plugin/goyo.vim          loads the plugin, defines :Goyo and <Plug> mappings
-autoload/goyo.vim        the implementation (Vim9script, exported API)
-doc/goyo.txt             help file
-doc/goyo-internals.txt   notes on the built-in mechanisms used
+plugin/zen.vim           loads the plugin, defines :Zen and <Plug> mappings
+autoload/zen.vim         the implementation (Vim9script, exported API)
+doc/zen.txt              help file
+doc/zen-internals.txt    notes on the built-in mechanisms used
 doc/tags                 help tags (regenerate with :helptags doc)
-lang/                    gettext catalogues (goyo.pot, <lang>/LC_MESSAGES/goyo.mo)
-test/test_goyo.vim       test suite
+lang/                    gettext catalogues (zen.pot, <lang>/LC_MESSAGES/zen.mo)
+test/test_zen.vim        test suite
 test/conformance.sh      package-convention checks
 test/run.sh              test runner
+test/bench.sh            micro-benchmark runner
 Makefile                 common tasks
 ```
 
@@ -82,9 +84,9 @@ failures as the exit status.  See `CONTRIBUTING.md`.
 
 ## Translation
 
-The catalogue template is `lang/goyo.pot`.  To add a language, create
-`lang/<lang_id>/LC_MESSAGES/goyo.po`, translate it and compile it with
-`msgfmt -o goyo.mo goyo.po`.  See `:help package-translation`.
+The catalogue template is `lang/zen.pot`.  To add a language, create
+`lang/<lang_id>/LC_MESSAGES/zen.po`, translate it and compile it with
+`msgfmt -o zen.mo zen.po`.  See `:help package-translation`.
 
 ## License
 

@@ -1,38 +1,38 @@
 vim9script
 
-# goyo.vim: Distraction-free writing mode (implementation)
+# zen.vim: Distraction-free writing mode (implementation)
 #
-# Maintainer:   goyo.vim fork contributors
+# Maintainer:   zen.vim fork contributors
 # Last Change:  2026 Sep 23
 # License:      MIT (see LICENSE)
 #
-# This file is the Vim9script implementation of the plugin.  plugin/goyo.vim
-# defines the user-facing command and imports this file as `goyo`; only the
+# This file is the Vim9script implementation of the plugin.  plugin/zen.vim
+# defines the user-facing command and imports this file as `zen`; only the
 # exported items below are part of the public API.
 #
 # Design notes:
-#   * Session state lives in tab-local variables (t:goyo_*) so that multiple
+#   * Session state lives in tab-local variables (t:zen_*) so that multiple
 #     tabs never interfere with each other.
-#   * Options and mappings touched while Goyo is active are saved on entry and
+#   * Options and mappings touched while Zen is active are saved on entry and
 #     restored exactly on exit.
-#   * Autocommands are confined to the `goyo` augroup and removed on exit.
+#   * Autocommands are confined to the `zen` augroup and removed on exit.
 #
-# See doc/goyo.txt for user documentation.
+# See doc/zen.txt for user documentation.
 
 # ---------------------------------------------------------------------------
-# Message translation.  The package identifier is "goyo" (see
+# Message translation.  The package identifier is "zen" (see
 # :help package-translation).  The lang/ directory is optional; when it
 # is absent gettext() simply returns the untranslated string.
 # ---------------------------------------------------------------------------
 try
-  bindtextdomain('goyo',
+  bindtextdomain('zen',
     fnamemodify(expand('<sfile>'), ':p:h') .. '/../lang/')
 catch
   # bindtextdomain() is only available with the +multi_lang feature; ignore.
 endtry
 
 # Highlight groups whose attributes are blended into the background while
-# Goyo is active.  They are saved before Tranquilize() and restored on exit.
+# Zen is active.  They are saved before Tranquilize() and restored on exit.
 const TRANQUILIZED_GROUPS: list<string> = [
   'NonText', 'FoldColumn', 'ColorColumn', 'VertSplit',
   'StatusLine', 'StatusLineNC', 'SignColumn',
@@ -40,15 +40,15 @@ const TRANQUILIZED_GROUPS: list<string> = [
 
 # ---------------------------------------------------------------------------
 # Session state (stored in tab-local variables).
-#   t:goyo_pads         buffer numbers of the four pads {l,r,t,b}
-#   t:goyo_dim          geometry {width,height,xoff,yoff}
-#   t:goyo_dim_expr     the expression the geometry was parsed from
-#   t:goyo_master       buffer number of the master window
-#   t:goyo_winid        window id of the master window
-#   t:goyo_orig_winid   window id of the window Goyo started from
-#   t:goyo_orig_tab     tab number Goyo started from
-#   t:goyo_revert       saved global options
-#   t:goyo_maps         temporary mappings to remove on exit
+#   t:zen_pads         buffer numbers of the four pads {l,r,t,b}
+#   t:zen_dim          geometry {width,height,xoff,yoff}
+#   t:zen_dim_expr     the expression the geometry was parsed from
+#   t:zen_master       buffer number of the master window
+#   t:zen_winid        window id of the master window
+#   t:zen_orig_winid   window id of the window Zen started from
+#   t:zen_orig_tab     tab number Zen started from
+#   t:zen_revert       saved global options
+#   t:zen_maps         temporary mappings to remove on exit
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ enddef
 # Hide 'number', 'relativenumber' and 'colorcolumn' unless the user asked
 # to keep line numbers.
 def HideLinenr()
-  if !get(g:, 'goyo_linenr', 0)
+  if !get(g:, 'zen_linenr', 0)
     setlocal nonumber
     if exists('&relativenumber')
       setlocal norelativenumber
@@ -200,7 +200,7 @@ enddef
 # Bind the autocommands that bounce the cursor out of a pad.  Called once per
 # pad when the session is created; resizing must not touch them.
 def BindPadAutocmd(bufnr: number, repel: string)
-  augroup goyo_pad
+  augroup zen_pad
     execute 'autocmd WinEnter,CursorMoved <buffer=' .. bufnr .. '> ++nested'
       .. ' Blank("' .. repel .. '")'
     execute 'autocmd WinLeave <buffer=' .. bufnr .. '> HideStatusline()'
@@ -227,7 +227,7 @@ def SetupPad(bufnr: number, vert: bool, size: number)
     append(bufnr, repeat([''], diff))
   endif
 
-  if get(g:, 'goyo_decoration_density', 0.0) > 0.0
+  if get(g:, 'zen_decoration_density', 0.0) > 0.0
     win_execute(winid, 'Decorate()')
   endif
   setbufvar(bufnr, '&modifiable', false)
@@ -236,14 +236,14 @@ enddef
 
 # Bounce the cursor back into the content window.
 def Blank(repel: string)
-  var pads = get(t:, 'goyo_pads', {})
+  var pads = get(t:, 'zen_pads', {})
   if bufwinnr(pads.r) <= bufwinnr(pads.l) + 1
       || bufwinnr(pads.b) <= bufwinnr(pads.t) + 3
-    # The content column is too small to be useful; leave Goyo.  Closing
+    # The content column is too small to be useful; leave Zen.  Closing
     # windows from inside CursorMoved/WinEnter is unsafe, so defer it via a
     # zero-delay timer rather than feeding a <Plug> key (which would depend
     # on the user's mappings).
-    timer_start(0, (_: number) => GoyoOff())
+    timer_start(0, (_: number) => ZenOff())
   endif
   execute 'noautocmd wincmd ' .. repel
 enddef
@@ -257,9 +257,9 @@ def Decorate()
     return
   endif
 
-  # mapnew() leaves g:goyo_decoration_elements untouched.
+  # mapnew() leaves g:zen_decoration_elements untouched.
   var elements: list<string> = mapnew(
-    get(g:, 'goyo_decoration_elements', ['~']),
+    get(g:, 'zen_decoration_elements', ['~']),
     (_: number, e: string): string => printf('%1s', e))
   # Drop empty elements so the grid width cannot become zero.
   elements = filter(elements, (_: number, e: string): bool => !empty(e))
@@ -269,7 +269,7 @@ def Decorate()
   var grid_width = max(mapnew(elements, (_: number, e: string): number => len(e)))
   var elements_count = len(elements)
   var blank = repeat(' ', grid_width)
-  var density = get(g:, 'goyo_decoration_density', 0.0)
+  var density = get(g:, 'zen_decoration_density', 0.0)
 
   # Build all lines at once to avoid repeated append() calls.
   var lines: list<string> = []
@@ -307,18 +307,18 @@ enddef
 def ParseArg(arg: string): dict<number>
   var height: number
   var yoff: number
-  if exists('g:goyo_height') || (!exists('g:goyo_margin_top') && !exists('g:goyo_margin_bottom'))
-    height = Relsz(get(g:, 'goyo_height', '85%'), &lines)
+  if exists('g:zen_height') || (!exists('g:zen_margin_top') && !exists('g:zen_margin_bottom'))
+    height = Relsz(get(g:, 'zen_height', '85%'), &lines)
     yoff = 0
   else
-    var top = max([0, Relsz(get(g:, 'goyo_margin_top', 4), &lines)])
-    var bot = max([0, Relsz(get(g:, 'goyo_margin_bottom', 4), &lines)])
+    var top = max([0, Relsz(get(g:, 'zen_margin_top', 4), &lines)])
+    var bot = max([0, Relsz(get(g:, 'zen_margin_bottom', 4), &lines)])
     height = &lines - top - bot
     yoff = top - bot
   endif
 
   var dim: dict<number> = {
-    'width':  Relsz(get(g:, 'goyo_width', 80), &columns),
+    'width':  Relsz(get(g:, 'zen_width', 80), &columns),
     'height': height,
     'xoff':   0,
     'yoff':   yoff,
@@ -340,7 +340,7 @@ def ParseArg(arg: string): dict<number>
     .. '\s*$')
   if empty(parts)
     echohl WarningMsg
-    echomsg gettext('goyo: invalid dimension expression: ') .. arg
+    echomsg gettext('zen: invalid dimension expression: ') .. arg
     echohl None
     return {}
   endif
@@ -357,7 +357,7 @@ enddef
 
 # Resize the four pads so the content window gets the requested geometry.
 def ResizePads()
-  var dim = t:goyo_dim
+  var dim = t:zen_dim
   dim.width = Clamp(dim.width, 2, &columns)
   dim.height = Clamp(dim.height, 2, &lines)
 
@@ -365,30 +365,30 @@ def ResizePads()
   var yoff = Clamp(dim.yoff, -vmargin, vmargin)
   var top = vmargin + yoff
   var bot = vmargin - yoff - 1
-  SetupPad(t:goyo_pads.t, false, top)
-  SetupPad(t:goyo_pads.b, false, bot)
+  SetupPad(t:zen_pads.t, false, top)
+  SetupPad(t:zen_pads.b, false, bot)
 
   var nwidth = max([len(string(line('$'))) + 1, &numberwidth])
   var width = dim.width + (&number ? nwidth : 0)
   var hmargin = max([0, (&columns - width) / 2 - 1])
   var xoff = Clamp(dim.xoff, -hmargin, hmargin)
-  SetupPad(t:goyo_pads.l, true, hmargin + xoff)
-  SetupPad(t:goyo_pads.r, true, hmargin - xoff)
+  SetupPad(t:zen_pads.l, true, hmargin + xoff)
+  SetupPad(t:zen_pads.r, true, hmargin - xoff)
 enddef
 
 # Re-parse the expression and re-apply the geometry (<C-w>=).
 def ResizeFromExpr()
-  t:goyo_dim = ParseArg(t:goyo_dim_expr)
+  t:zen_dim = ParseArg(t:zen_dim_expr)
   ResizePads()
 enddef
 
 def ResizeWidth(delta: number)
-  t:goyo_dim.width = winwidth(0) + 2 * delta
+  t:zen_dim.width = winwidth(0) + 2 * delta
   ResizePads()
 enddef
 
 def ResizeHeight(delta: number)
-  t:goyo_dim.height += 2 * delta
+  t:zen_dim.height += 2 * delta
   ResizePads()
 enddef
 
@@ -433,8 +433,8 @@ def Tranquilize()
   var groups = TRANQUILIZED_GROUPS
   var bg = GroupBg('Normal')
   if empty(bg)
-    # No usable background colour: fall back to g:goyo_bg with no background.
-    SetGroupColors(groups, get(g:, 'goyo_bg', 'black'), 'NONE')
+    # No usable background colour: fall back to g:zen_bg with no background.
+    SetGroupColors(groups, get(g:, 'zen_bg', 'black'), 'NONE')
   else
     SetGroupColors(groups, bg, bg)
   endif
@@ -446,8 +446,8 @@ enddef
 
 # Return the horizontal bounds of the content column as [left, right].
 def ContentBounds(): list<number>
-  var lpad = bufwinnr(t:goyo_pads.l)
-  var rpad = bufwinnr(t:goyo_pads.r)
+  var lpad = bufwinnr(t:zen_pads.l)
+  var rpad = bufwinnr(t:zen_pads.r)
   var left = lpad > 0 ? win_screenpos(lpad)[1] + winwidth(lpad) : 1
   var right = rpad > 0 ? win_screenpos(rpad)[1] - 1 : &columns
   return [left, right]
@@ -456,11 +456,11 @@ enddef
 # Locate the master window: prefer its window id (its buffer may have
 # changed), fall back to its buffer number.
 def MasterWin(): number
-  var win = win_id2win(t:goyo_winid)
+  var win = win_id2win(t:zen_winid)
   if win > 0
     return win
   endif
-  return bufwinnr(t:goyo_master)
+  return bufwinnr(t:zen_master)
 enddef
 
 # When a content window lies outside the content column (for example one
@@ -469,7 +469,7 @@ enddef
 # call; BufWinEnter fires again for the rest, which avoids invalidating the
 # window iteration.
 def ConfineWindows()
-  if !exists('#goyo') || !exists('t:goyo_pads')
+  if !exists('#zen') || !exists('t:zen_pads')
     return
   endif
   var master_win = MasterWin()
@@ -479,7 +479,7 @@ def ConfineWindows()
   var bounds = ContentBounds()
   var left = bounds[0]
   var right = bounds[1]
-  var pads = t:goyo_pads
+  var pads = t:zen_pads
   var tabnr = tabpagenr()
 
   # getwininfo() returns one dictionary per window with its position and size,
@@ -513,7 +513,7 @@ enddef
 # Entering and leaving
 # ---------------------------------------------------------------------------
 
-# Remember the state of plugins that Goyo interferes with, to restore it
+# Remember the state of plugins that Zen interferes with, to restore it
 # on exit.
 def DisablePlugins(): dict<bool>
   var state: dict<bool> = {}
@@ -623,12 +623,12 @@ def RestoreOptions(revert: dict<any>)
   endif
 enddef
 
-# Enter Goyo.
+# Enter Zen.
 # Refresh the session windows on BufWinEnter/WinEnter and confine
-# out-of-column windows.  Only acts on the Goyo tab so other tabs are
+# out-of-column windows.  Only acts on the Zen tab so other tabs are
 # unaffected.
 def OnBufWinEnter()
-  if !exists('t:goyo_pads')
+  if !exists('t:zen_pads')
     return
   endif
   HideLinenr()
@@ -637,12 +637,12 @@ def OnBufWinEnter()
 enddef
 
 def OnWinEnter()
-  if exists('t:goyo_pads')
+  if exists('t:zen_pads')
     HideStatusline()
   endif
 enddef
 
-def GoyoOn(dim_arg: string)
+def ZenOn(dim_arg: string)
   var dim = ParseArg(dim_arg)
   if empty(dim)
     return
@@ -656,17 +656,17 @@ def GoyoOn(dim_arg: string)
   # that is closed again on exit.
   tab split
 
-  t:goyo_orig_winid = orig_winid
-  t:goyo_orig_tab = orig_tab
-  t:goyo_master = winbufnr(0)
-  t:goyo_winid = win_getid()
-  t:goyo_dim = dim
-  t:goyo_dim_expr = dim_arg
-  t:goyo_pads = {}
-  t:goyo_revert = revert
+  t:zen_orig_winid = orig_winid
+  t:zen_orig_tab = orig_tab
+  t:zen_master = winbufnr(0)
+  t:zen_winid = win_getid()
+  t:zen_dim = dim
+  t:zen_dim_expr = dim_arg
+  t:zen_pads = {}
+  t:zen_revert = revert
 
-  t:goyo_disabled = DisablePlugins()
-  t:goyo_maps = MapNop() + MapResize()
+  t:zen_disabled = DisablePlugins()
+  t:zen_maps = MapNop() + MapResize()
 
   HideLinenr()
 
@@ -684,70 +684,70 @@ def GoyoOn(dim_arg: string)
     set guioptions-=L
   endif
 
-  t:goyo_pads.l = InitPad('vertical topleft new')
-  t:goyo_pads.r = InitPad('vertical botright new')
-  t:goyo_pads.t = InitPad('topleft new')
-  t:goyo_pads.b = InitPad('botright new')
+  t:zen_pads.l = InitPad('vertical topleft new')
+  t:zen_pads.r = InitPad('vertical botright new')
+  t:zen_pads.t = InitPad('topleft new')
+  t:zen_pads.b = InitPad('botright new')
 
   ResizePads()
 
   # Bind the bounce-back autocommands once, after the pads are laid out;
   # ResizePads() itself only resizes them.
-  BindPadAutocmd(t:goyo_pads.l, 'l')
-  BindPadAutocmd(t:goyo_pads.r, 'h')
-  BindPadAutocmd(t:goyo_pads.t, 'j')
-  BindPadAutocmd(t:goyo_pads.b, 'k')
+  BindPadAutocmd(t:zen_pads.l, 'l')
+  BindPadAutocmd(t:zen_pads.r, 'h')
+  BindPadAutocmd(t:zen_pads.t, 'j')
+  BindPadAutocmd(t:zen_pads.b, 'k')
 
   # Remember the highlight attributes Tranquilize() is about to change.
-  t:goyo_highlights = SaveHighlights()
+  t:zen_highlights = SaveHighlights()
   Tranquilize()
 
-  augroup goyo
+  augroup zen
     autocmd!
-    autocmd TabLeave    * ++nested call GoyoOff()
+    autocmd TabLeave    * ++nested call ZenOff()
     autocmd VimResized  * call ResizePads()
     autocmd ColorScheme * call Tranquilize()
     # Only act on this tab; ConfineWindows() pulls stray windows back.
     autocmd BufWinEnter * call OnBufWinEnter()
     autocmd WinEnter    * call OnWinEnter()
     if has('nvim')
-      autocmd TermClose * call feedkeys("\<Plug>(goyo-resize)")
+      autocmd TermClose * call feedkeys("\<Plug>(zen-resize)")
     endif
   augroup END
 
   HideStatusline()
-  var callbacks = get(g:, 'goyo_callbacks', [])
+  var callbacks = get(g:, 'zen_callbacks', [])
   if len(callbacks) > 0 && type(callbacks[0]) == v:t_func
     callbacks[0]()
   endif
-  doautocmd <nomodeline> User GoyoEnter
+  doautocmd <nomodeline> User ZenEnter
 enddef
 
-# Leave Goyo and transplant the content-window layout back to the
+# Leave Zen and transplant the content-window layout back to the
 # original tab.
-def GoyoOff()
-  if !exists('#goyo') || !exists('t:goyo_revert')
+def ZenOff()
+  if !exists('#zen') || !exists('t:zen_revert')
     return
   endif
 
-  augroup goyo
+  augroup zen
     autocmd!
   augroup END
-  augroup! goyo
-  augroup goyo_pad
+  augroup! zen
+  augroup zen_pad
     autocmd!
   augroup END
-  augroup! goyo_pad
+  augroup! zen_pad
 
-  UnmapWindowKeys(get(t:, 'goyo_maps', []))
+  UnmapWindowKeys(get(t:, 'zen_maps', []))
 
-  var revert   = t:goyo_revert
-  var disabled = get(t:, 'goyo_disabled', {})
-  var orig_winid = get(t:, 'goyo_orig_winid', 0)
-  var pads = get(t:, 'goyo_pads', {})
-  # Read the saved highlights while still in the Goyo tab: t: variables are
+  var revert   = t:zen_revert
+  var disabled = get(t:, 'zen_disabled', {})
+  var orig_winid = get(t:, 'zen_orig_winid', 0)
+  var pads = get(t:, 'zen_pads', {})
+  # Read the saved highlights while still in the Zen tab: t: variables are
   # tab-local and the original tab is restored before the end of this function.
-  var saved_highlights = get(t:, 'goyo_highlights', [])
+  var saved_highlights = get(t:, 'zen_highlights', [])
 
   # Collect buffer, cursor and screen position of every content window.
   # getwininfo() supplies the geometry, getcurpos() the cursor.
@@ -773,13 +773,13 @@ def GoyoOff()
   endfor
   content->sort((a, b) => a.row != b.row ? a.row - b.row : a.col_pos - b.col_pos)
 
-  var goyo_tab = tabpagenr()
+  var zen_tab = tabpagenr()
 
   # Go back to the original tab/window and rebuild the layout there.
   # win_gotoid() also switches tab pages, so it is used first; it returns
   # false when the window no longer exists, in which case fall back to the
   # recorded tab number.
-  var orig_tab = get(t:, 'goyo_orig_tab', 0)
+  var orig_tab = get(t:, 'zen_orig_tab', 0)
   if orig_winid > 0 && win_gotoid(orig_winid)
     # done
   elseif orig_tab > 0 && orig_tab <= tabpagenr('$')
@@ -813,9 +813,9 @@ def GoyoOff()
     endfor
   endif
 
-  # Close the Goyo tab.
-  if goyo_tab != tabpagenr() && goyo_tab <= tabpagenr('$')
-    execute ':' .. goyo_tab .. 'tabclose!'
+  # Close the Zen tab.
+  if zen_tab != tabpagenr() && zen_tab <= tabpagenr('$')
+    execute ':' .. zen_tab .. 'tabclose!'
   endif
 
   RestoreOptions(revert)
@@ -825,31 +825,31 @@ def GoyoOff()
 
   EnablePlugins(disabled)
 
-  var callbacks = get(g:, 'goyo_callbacks', [])
+  var callbacks = get(g:, 'zen_callbacks', [])
   if len(callbacks) > 1 && type(callbacks[1]) == v:t_func
     callbacks[1]()
   endif
-  doautocmd <nomodeline> User GoyoLeave
+  doautocmd <nomodeline> User ZenLeave
 enddef
 
 # ---------------------------------------------------------------------------
-# Public API (imported by plugin/goyo.vim as `goyo`)
+# Public API (imported by plugin/zen.vim as `zen`)
 # ---------------------------------------------------------------------------
 
-# Whether a Goyo session is currently active in this tab.
+# Whether a Zen session is currently active in this tab.
 export def IsActive(): bool
-  return exists('#goyo')
+  return exists('#zen')
 enddef
 
 # Access the pad buffers of the current session ({l,r,t,b} -> bufnr).
-# Returns an empty dict when Goyo is not active.
+# Returns an empty dict when Zen is not active.
 export def Pads(): dict<number>
-  return get(t:, 'goyo_pads', {})
+  return get(t:, 'zen_pads', {})
 enddef
 
-# Close the current Goyo session.  Safe to call when it is not active.
+# Close the current Zen session.  Safe to call when it is not active.
 export def Close()
-  GoyoOff()
+  ZenOff()
 enddef
 
 # Re-apply the current dimensions.
@@ -859,36 +859,36 @@ export def Resize()
   endif
 enddef
 
-# Main entry point, called by the :Goyo command in plugin/goyo.vim.
+# Main entry point, called by the :Zen command in plugin/zen.vim.
 #   bang: when true, force leaving regardless of state.
-#   dim:  optional dimension expression (see doc/goyo.txt).
+#   dim:  optional dimension expression (see doc/zen.txt).
 export def Execute(bang: bool, dim: string)
   if bang
-    GoyoOff()
+    ZenOff()
     return
   endif
   if !IsActive()
-    GoyoOn(dim)
+    ZenOn(dim)
   elseif !empty(dim)
     # Changing dimensions on a live session: rebuild only when the layout is
     # too small for the pads, otherwise just resize.
     if winnr('$') < 5
-      GoyoOff()
-      GoyoOn(dim)
+      ZenOff()
+      ZenOn(dim)
       return
     endif
     var d = ParseArg(dim)
     if !empty(d)
-      t:goyo_dim = d
-      t:goyo_dim_expr = dim
+      t:zen_dim = d
+      t:zen_dim_expr = dim
       ResizePads()
     endif
   else
-    GoyoOff()
+    ZenOff()
   endif
 enddef
 
-# Custom completion for :Goyo ({ArgLead}, {CmdLine}, {CursorPos}; see
+# Custom completion for :Zen ({ArgLead}, {CmdLine}, {CursorPos}; see
 # :help command-completion-customlist).
 export def Complete(arglead: string, cmdline: string, _cursorpos: number): list<string>
   if cmdline =~ '\s\S*$'

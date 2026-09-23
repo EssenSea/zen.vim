@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving goyo.vim.  Please read this before opening a pull
+Thanks for improving zen.vim.  Please read this before opening a pull
 request.
 
 ## Requirements
@@ -15,10 +15,10 @@ This project follows the conventions used by Vim's bundled plugins
 `$VIMRUNTIME/pack/dist/opt/`).
 
 - Vim9script only.  Every script starts with `vim9script`.
-- `plugin/goyo.vim` loads the implementation with
-  `import autoload '../autoload/goyo.vim'` and only defines commands and
+- `plugin/zen.vim` loads the implementation with
+  `import autoload '../autoload/zen.vim'` and only defines commands and
   `<Plug>` mappings.  It must not contain logic.
-- `autoload/goyo.vim` exposes `export def` functions.  Script-local helpers
+- `autoload/zen.vim` exposes `export def` functions.  Script-local helpers
   stay private (no `export`).
 - Use typed variables and function arguments.
 - Never use `:let &opt = ...` inside `execute`; use `:set` or direct `&opt`
@@ -30,7 +30,7 @@ This project follows the conventions used by Vim's bundled plugins
 
 ## Tests
 
-Add a case to `test/test_goyo.vim` for every behavioural change.  Tests use
+Add a case to `test/test_zen.vim` for every behavioural change.  Tests use
 Vim's built-in `assert_*()` functions and run with:
 
 ```sh
@@ -40,7 +40,7 @@ make test-nvim   # Neovim, if it supports Vim9script
 
 ## Documentation
 
-Update `doc/goyo.txt` when user-facing behaviour changes, then regenerate the
+Update `doc/zen.txt` when user-facing behaviour changes, then regenerate the
 tags:
 
 ```sh
