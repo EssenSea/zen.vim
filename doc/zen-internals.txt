@@ -149,10 +149,10 @@ other plugins can hook into the session.
 ==============================================================================
 7. Window resize events		*zen-internals-resize*
 
-Vim 9.1 added the |WinResized| event, which fires when a window in the
-current tab page changes size, for example when the user drags a separator.
-It is more precise than |VimResized|, which only fires when the whole
-screen changes.  Both are used:
+The |WinResized| event (Vim 9.0.0917) fires when a window in the current
+tab page changes size, for example when the user drags a separator.  It is
+more precise than |VimResized|, which only fires when the whole screen
+changes.  Both are used:
 
 	VimResized	re-layout when the screen is resized
 	WinResized	re-layout when a window is resized interactively

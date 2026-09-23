@@ -5,6 +5,18 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Internal
+
+- Slimmed the implementation: the four pad windows are described once in a
+  `PAD_DEFS` table used for creation, autocommands and exclusion; `MapNop()`
+  and `MapResize()` were merged into `InstallMaps()`; `OnWinResized()` was
+  removed because `ResizePads()` already guards itself; the `+timers`
+  fallback moved into a single `Defer()` helper.
+- Removed checks for options that always exist on Vim 9.1+ (`relativenumber`,
+  `colorcolumn`, `winfixbuf`) and the unused nvim branch; `WinResized` no
+  longer needs an `exists('##WinResized')` guard (it is present since
+  9.0.0917).
+
 ### Changed
 
 - Window layouts are now captured with |winlayout()| and replayed on leave,

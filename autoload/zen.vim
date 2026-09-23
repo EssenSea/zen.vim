@@ -60,6 +60,11 @@ def Clamp(val: number, minv: number, maxv: number): number
   return min([max([val, minv]), maxv])
 enddef
 
+# Whether GUI colours are in effect.
+def UseGui(): bool
+  return has('gui_running') || (has('termguicolors') && &termguicolors)
+enddef
+
 # Return the background colour of a highlight group using the built-in
 # highlight API (|hlget()|).  The group link is resolved recursively so that
 # the effective value is used.  Returns an empty string when no colour is
@@ -74,7 +79,7 @@ def GroupBg(group: string): string
     return ''
   endif
   # Prefer the GUI colour with 'termguicolors', otherwise the cterm colour.
-  if has('gui_running') || (has('termguicolors') && &termguicolors)
+  if UseGui()
     return get(entry, 'guibg', '')
   endif
   return get(entry, 'ctermbg', '')
@@ -83,7 +88,7 @@ enddef
 # Apply a foreground and background colour to a list of highlight groups in a
 # single hlset() call.  A colour of 'NONE' clears the corresponding attribute.
 def SetGroupColors(groups: list<string>, fg: string, bg: string)
-  var use_gui = has('gui_running') || (has('termguicolors') && &termguicolors)
+  var use_gui = UseGui()
   var items: list<dict<any>> = []
   for group in groups
     if use_gui
@@ -117,46 +122,51 @@ enddef
 # to keep line numbers.
 def HideLinenr()
   if !get(g:, 'zen_linenr', 0)
-    setlocal nonumber
-    if exists('&relativenumber')
-      setlocal norelativenumber
-    endif
+    setlocal nonumber norelativenumber
   endif
-  if exists('&colorcolumn')
-    setlocal colorcolumn=
-  endif
+  setlocal colorcolumn=
 enddef
 
 # ---------------------------------------------------------------------------
 # Mapping management: remember the <C-w> keys we override so they can be
 # restored exactly on exit.
 # ---------------------------------------------------------------------------
-def MapNop(): list<string>
-  var keys = ['R', 'H', 'J', 'K', 'L', '|', '_']
+# Keys disabled while Zen is active, and the resize bindings installed in
+# their place (key -> <ScriptCmd> body).
+# The four padding windows.  key is the name used in t:zen_pads, cmd creates
+# the window horizontally or vertically, and repel is the |wincmd| argument
+# used to bounce the cursor back into the content column.
+const PAD_DEFS: list<dict<string>> = [
+  {key: 'l', cmd: 'vertical topleft new',  repel: 'l'},
+  {key: 'r', cmd: 'vertical botright new', repel: 'h'},
+  {key: 't', cmd: 'topleft new',           repel: 'j'},
+  {key: 'b', cmd: 'botright new',          repel: 'k'},
+]
+
+const NOP_KEYS: list<string> = ['R', 'H', 'J', 'K', 'L', '|', '_']
+const RESIZE_KEYS: dict<string> = {
+  '=': 'ResizeFromExpr()',
+  '>': 'ResizeWidth(v:count1)',
+  '<': 'ResizeWidth(-v:count1)',
+  '+': 'ResizeHeight(v:count1)',
+  '-': 'ResizeHeight(-v:count1)',
+}
+
+# Install the temporary <C-w> mappings.  A key is only mapped when it is
+# currently free, so user mappings are never clobbered; the keys that were
+# actually installed are returned so they can be removed on exit.
+def InstallMaps(): list<string>
   var mapped: list<string> = []
-  for k in keys
+  for k in NOP_KEYS
     if empty(maparg("\<C-w>" .. k, 'n'))
       execute 'nnoremap <silent> <C-w>' .. escape(k, '|') .. ' <Nop>'
       mapped->add(k)
     endif
   endfor
-  return mapped
-enddef
-
-def MapResize(): list<string>
-  # Command table: key -> <ScriptCmd> call.
-  var commands: dict<string> = {
-    '=': 'ResizeFromExpr()',
-    '>': 'ResizeWidth(v:count1)',
-    '<': 'ResizeWidth(-v:count1)',
-    '+': 'ResizeHeight(v:count1)',
-    '-': 'ResizeHeight(-v:count1)',
-  }
-  var mapped: list<string> = []
-  for k in keys(commands)
+  for k in keys(RESIZE_KEYS)
     if empty(maparg("\<C-w>" .. k, 'n'))
       execute 'nnoremap <silent> <C-w>' .. escape(k, '|')
-        .. ' <ScriptCmd>' .. commands[k] .. '<CR>'
+        .. ' <ScriptCmd>' .. RESIZE_KEYS[k] .. '<CR>'
       mapped->add(k)
     endif
   endfor
@@ -181,14 +191,8 @@ def InitPad(command: string): number
 
   # Set all window-local options in one go.
   setlocal buftype=nofile bufhidden=wipe nomodifiable nobuflisted
-    \ noswapfile nonumber nocursorline nocursorcolumn winfixwidth
-    \ winfixheight nowrap statusline=\ 
-  if exists('&relativenumber')
-    setlocal norelativenumber
-  endif
-  if exists('&colorcolumn')
-    setlocal colorcolumn=
-  endif
+    \ noswapfile nonumber norelativenumber nocursorline nocursorcolumn
+    \ colorcolumn= winfixwidth winfixheight nowrap statusline=\ 
   var bufnr = winbufnr(0)
 
   if winnr('#') > 0
@@ -367,22 +371,14 @@ enddef
 # ---------------------------------------------------------------------------
 
 # Resize the four pads so the content window gets the requested geometry.
-# Re-entrancy guard: ResizePads() changes window sizes, which can trigger
-# WinResized again.  Ignore those secondary events.
+# This is called from VimResized and WinResized, among others.  Because
+# resizing changes window sizes it can trigger WinResized again, so a
+# re-entrancy guard ignores those secondary events.  The t:zen_pads check
+# makes the autocommand a no-op in other tabs.
 var resizing = false
 
-# Handler for WinResized (Vim 9.1+).  Unlike VimResized, which only fires when
-# the whole screen changes, this fires when a window in the current tab page
-# is resized, for example by dragging a separator.
-def OnWinResized()
-  if !exists('t:zen_pads')
-    return
-  endif
-  ResizePads()
-enddef
-
 def ResizePads()
-  if resizing
+  if resizing || !exists('t:zen_pads')
     return
   endif
   resizing = true
@@ -435,9 +431,7 @@ def SaveHighlights(): list<dict<any>>
   # hlget() takes a single group name, so query them one by one.
   var saved: list<dict<any>> = []
   for group in TRANQUILIZED_GROUPS
-    for entry in hlget(group, true)
-      saved->add(entry)
-    endfor
+    saved->extend(hlget(group, true))
   endfor
   return saved
 enddef
@@ -463,19 +457,30 @@ enddef
 # Blend interface elements into the background for a distraction-free look.
 # All groups are updated with a single hlset() call.
 def Tranquilize()
-  var groups = TRANQUILIZED_GROUPS
   var bg = GroupBg('Normal')
   if empty(bg)
     # No usable background colour: fall back to g:zen_bg with no background.
-    SetGroupColors(groups, get(g:, 'zen_bg', 'black'), 'NONE')
+    SetGroupColors(TRANQUILIZED_GROUPS, get(g:, 'zen_bg', 'black'), 'NONE')
   else
-    SetGroupColors(groups, bg, bg)
+    SetGroupColors(TRANQUILIZED_GROUPS, bg, bg)
   endif
 enddef
 
 # ---------------------------------------------------------------------------
 # Confining content windows (:help / :copen / tag jumps stay in the column)
 # ---------------------------------------------------------------------------
+
+# The pad buffer numbers of the current session.
+def PadBufs(): list<number>
+  var bufs: list<number> = []
+  var pads = get(t:, 'zen_pads', {})
+  for pad in PAD_DEFS
+    if has_key(pads, pad.key)
+      bufs->add(pads[pad.key])
+    endif
+  endfor
+  return bufs
+enddef
 
 # Return the horizontal bounds of the content column as [left, right].
 def ContentBounds(): list<number>
@@ -514,13 +519,9 @@ def SwitchBuffer(buf: number)
   if !bufexists(buf)
     return
   endif
-  # getwinvar() only understands the legacy option name without the leading
-  # ampersand, and 'winfixbuf' only exists on Vim 9.1+.
-  var fixed = false
-  if exists('&winfixbuf')
-    var v = getwinvar(0, 'winfixbuf')
-    fixed = type(v) == v:t_number && v != 0
-  endif
+  # 'winfixbuf' (Vim 9.1) pins a window to its buffer; lift it for the switch
+  # and restore it afterwards.
+  var fixed = &winfixbuf
   if fixed
     setlocal nowinfixbuf
   endif
@@ -609,8 +610,8 @@ def ConfineWindows()
   var bounds = ContentBounds()
   var left = bounds[0]
   var right = bounds[1]
-  var pads = t:zen_pads
   var tabnr = tabpagenr()
+  var padbufs = PadBufs()
 
   # Collect the buffers of every content window that sticks out of the
   # content column.  getwininfo() gives the geometry in one call.
@@ -620,8 +621,7 @@ def ConfineWindows()
       continue
     endif
     var buf = info.bufnr
-    if buf == pads.t || buf == pads.b || buf == pads.l || buf == pads.r
-        || info.winnr == master_win
+    if info.winnr == master_win || index(padbufs, buf) >= 0
       continue
     endif
     if info.wincol >= left && info.wincol + info.width - 1 <= right
@@ -646,10 +646,9 @@ def ConfineWindows()
       continue
     endif
     execute ':' .. master .. 'wincmd w'
-    var was_fixed = false
-    if exists('&winfixbuf') && &winfixbuf
+    var was_fixed = &winfixbuf
+    if was_fixed
       setlocal nowinfixbuf
-      was_fixed = true
     endif
     execute ':' .. w .. 'wincmd c'
     execute 'sbuffer ' .. buf
@@ -817,7 +816,7 @@ def ZenOn(dim_arg: string)
   t:zen_revert = revert
 
   t:zen_disabled = DisablePlugins()
-  t:zen_maps = MapNop() + MapResize()
+  t:zen_maps = InstallMaps()
 
   HideLinenr()
 
@@ -835,19 +834,17 @@ def ZenOn(dim_arg: string)
     set guioptions-=L
   endif
 
-  t:zen_pads.l = InitPad('vertical topleft new')
-  t:zen_pads.r = InitPad('vertical botright new')
-  t:zen_pads.t = InitPad('topleft new')
-  t:zen_pads.b = InitPad('botright new')
+  for pad in PAD_DEFS
+    t:zen_pads[pad.key] = InitPad(pad.cmd)
+  endfor
 
   ResizePads()
 
   # Bind the bounce-back autocommands once, after the pads are laid out;
   # ResizePads() itself only resizes them.
-  BindPadAutocmd(t:zen_pads.l, 'l')
-  BindPadAutocmd(t:zen_pads.r, 'h')
-  BindPadAutocmd(t:zen_pads.t, 'j')
-  BindPadAutocmd(t:zen_pads.b, 'k')
+  for pad in PAD_DEFS
+    BindPadAutocmd(t:zen_pads[pad.key], pad.repel)
+  endfor
 
   # Remember the highlight attributes Tranquilize() is about to change.
   t:zen_highlights = SaveHighlights()
@@ -857,17 +854,12 @@ def ZenOn(dim_arg: string)
     autocmd!
     autocmd TabLeave    * ++nested call ZenOff()
     autocmd VimResized  * call ResizePads()
-    # WinResized is new in Vim 9.1 and is more precise than VimResized.
-    if exists('##WinResized')
-      autocmd WinResized * call OnWinResized()
-    endif
+    # WinResized (Vim 9.0.0917) is more precise than VimResized.
+    autocmd WinResized  * call ResizePads()
     autocmd ColorScheme * call Tranquilize()
     # Only act on this tab; ConfineWindows() pulls stray windows back.
     autocmd BufWinEnter * call OnBufWinEnter()
     autocmd WinEnter    * call OnWinEnter()
-    if has('nvim')
-      autocmd TermClose * call feedkeys("\<Plug>(zen-resize)")
-    endif
   augroup END
 
   HideStatusline()
@@ -899,20 +891,13 @@ def ZenOff()
   var revert   = t:zen_revert
   var disabled = get(t:, 'zen_disabled', {})
   var orig_winid = get(t:, 'zen_orig_winid', 0)
-  var pads = get(t:, 'zen_pads', {})
   # Read the saved highlights while still in the Zen tab: t: variables are
   # tab-local and the original tab is restored before the end of this function.
   var saved_highlights = get(t:, 'zen_highlights', [])
 
   # Capture the content-window layout of the Zen tab as a winlayout() tree
   # with the pad windows removed.  This reproduces nested layouts exactly.
-  var padlist: list<number> = []
-  for key in ['t', 'b', 'l', 'r']
-    if has_key(pads, key)
-      padlist->add(pads[key])
-    endif
-  endfor
-  var layout = CaptureTree(winlayout(), padlist)
+  var layout = CaptureTree(winlayout(), PadBufs())
 
   var zen_tab = tabpagenr()
 
