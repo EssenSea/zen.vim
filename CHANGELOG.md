@@ -54,8 +54,18 @@ on [Keep a Changelog](https://keepachangelog.com/).
   and master, and a weekly schedule re-runs them so a change in Vim itself is
   reported even when the plugin has not changed.
 
+### Removed
+
+- The unused `Pads()` helper in autoload/zen.vim.  It was dead code left
+  over from the upstream API; the public API is Open/Close/Toggle only.
+
 ### Fixed
 
+- Entering or leaving Zen printed `No matching autocommands: User
+  ZenEnter` / `ZenLeave` when no user autocommand listened for those events.
+  The `:doautocmd User ZenEnter/ZenLeave` calls are now guarded by
+  `exists('#User#ZenEnter')` / `exists('#User#ZenLeave')`, so user handlers
+  still fire but the message is gone when there is none.
 - The separator rows reappeared after a config reload.  `:w` on a vimrc can
   source it (via a BufWritePost autocommand), and a config that sets
   `&laststatus = 2` made every window draw a status line again.  Zen now

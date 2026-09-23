@@ -1259,7 +1259,11 @@ def ZenOn(dim_arg: string)
   if len(callbacks) > 0 && type(callbacks[0]) == v:t_func
     callbacks[0]()
   endif
-  doautocmd <nomodeline> User ZenEnter
+  # Only fire the event when someone listens for it; otherwise Vim prints
+  # "No matching autocommands: User ZenEnter" in the message area.
+  if exists('#User#ZenEnter')
+    doautocmd <nomodeline> User ZenEnter
+  endif
 enddef
 
 # Undo a partially built session after ZenOn() failed.  It differs from
@@ -1377,7 +1381,10 @@ def ZenOff()
   if len(callbacks) > 1 && type(callbacks[1]) == v:t_func
     callbacks[1]()
   endif
-  doautocmd <nomodeline> User ZenLeave
+  # As with ZenEnter, avoid the "No matching autocommands" message.
+  if exists('#User#ZenLeave')
+    doautocmd <nomodeline> User ZenLeave
+  endif
 enddef
 
 # ---------------------------------------------------------------------------
@@ -1432,11 +1439,6 @@ enddef
 # Whether a Zen session is active in the current tab page.
 def IsActive(): bool
   return exists('#zen')
-enddef
-
-# The pad buffers of the current session ({l,r,t,b} -> bufnr).
-def Pads(): dict<number>
-  return get(t:, 'zen_pads', {})
 enddef
 
 # Custom completion for :Zen ({ArgLead}, {CmdLine}, {CursorPos}; see

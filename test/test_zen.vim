@@ -636,6 +636,18 @@ Test('invalid g:zen_callbacks entries are ignored', () => {
   unlet g:zen_callbacks
 })
 
+Test('entering/leaving Zen print no No-matching message', () => {
+  # Without this guard, doautocmd User ZenEnter/ZenLeave prints
+  # "No matching autocommands: ..." when no user listens for the event.
+  execute 'autocmd! User ZenEnter'
+  execute 'autocmd! User ZenLeave'
+  messages clear
+  zen#Open('80x20')
+  zen#Close()
+  var msgs = execute('messages')
+  assert_false(msgs =~# 'No matching autocommands')
+})
+
 Test('User ZenEnter/ZenLeave autocmds fire', () => {
   var log: list<string> = []
   augroup zen_test_events
