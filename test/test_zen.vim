@@ -714,35 +714,6 @@ Test('<C-w>c through the plugin closes the current content window', () => {
   silent! bwipeout!
 })
 
-Test('a later plugin clearing statusline is overridden again', () => {
-  # Another plugin may run `setlocal statusline<` from its own
-  # WinEnter/BufWinEnter handler.  When its augroup is (re)defined after
-  # Zen's -- as happens when a vimrc is sourced -- it runs last and would
-  # leave the separator rows visible.  Zen re-asserts the blank value from a
-  # zero-delay timer, after every autocommand of the event has run.
-  zen#Open('80x20')
-  augroup zen_test_statusline_rival
-    autocmd!
-    autocmd WinEnter,BufWinEnter * setlocal statusline<
-  augroup END
-  try
-    # Drive the event; the rival clears the window-local value during it.
-    doautocmd WinEnter
-    assert_equal('', &l:statusline)
-    # After the deferred re-assert the blank value is back everywhere.
-    sleep 30m
-    for i in range(1, winnr('$'))
-      assert_equal(' ', getwinvar(i, '&statusline'))
-    endfor
-  finally
-    augroup zen_test_statusline_rival
-      autocmd!
-    augroup END
-    augroup! zen_test_statusline_rival
-  endtry
-  zen#Close()
-})
-
 Test('<C-w>o / <C-w>c are routed through the plugin', () => {
   # They must be temporary <ScriptCmd> mappings, so the close and the pad
   # rebuild happen in one event-loop turn (no one-window frame is redrawn).

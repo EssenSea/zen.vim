@@ -118,17 +118,6 @@ Saving and restoring ~
 	separator row is hidden by the combination of all three, not by
 	'laststatus' alone.
 
-	The blank value is window-local, so another plugin can clear it with
-	`setlocal statusline<` from its own WinEnter/BufWinEnter handler (to
-	make the window inherit a global statusline).  Autocommands run in the
-	order their augroups were defined, and sourcing a vimrc redefines the
-	other plugin's augroup last, so it would run after Zen and undo the
-	blank value.  OnBufWinEnter()/OnWinEnter() therefore also call
-	ScheduleHideStatuslines(), which re-applies the blank value from a
-	zero-delay timer.  The timer runs after every autocommand of the event
-	has finished, so the other plugin cannot override it; the call is
-	de-duplicated like ScheduleConfine().
-
 ==============================================================================
 4. Highlighting		*zen-internals-highlight*
 
