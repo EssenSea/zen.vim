@@ -226,6 +226,14 @@ const PAD_DEFS: list<dict<string>> = [
 # "<C-w>b" jump to the top/bottom window, which are pads here.
 const MOVE_KEYS: list<string> = ['h', 'j', 'k', 'l', 't', 'b']
 
+# Window-closing keys routed through ZenClose()/ZenOnly() so the pads are
+# rebuilt in the same event-loop turn as the close, which avoids a visible
+# intermediate frame where only one window is on screen.
+const CLOSE_KEYS: dict<string> = {
+  'c': 'ZenClose()',
+  'o': 'ZenOnly()',
+}
+
 const NOP_KEYS: list<string> = ['R', 'H', 'J', 'K', 'L', '|', '_']
 const RESIZE_KEYS: dict<string> = {
   '=': 'ResizeFromExpr()',
@@ -257,6 +265,13 @@ def InstallMaps(): list<string>
     if empty(maparg("\<C-w>" .. k, 'n'))
       execute 'nnoremap <silent> <C-w>' .. escape(k, '|')
         .. ' <ScriptCmd>ZenMove(' .. string(k) .. ')<CR>'
+      mapped->add(k)
+    endif
+  endfor
+  for k in keys(CLOSE_KEYS)
+    if empty(maparg("\<C-w>" .. k, 'n'))
+      execute 'nnoremap <silent> <C-w>' .. escape(k, '|')
+        .. ' <ScriptCmd>' .. CLOSE_KEYS[k] .. '<CR>'
       mapped->add(k)
     endif
   endfor
@@ -1014,6 +1029,43 @@ def CheckPads()
   # A pad window is gone (for example :only / <C-w>o).  Rather than leaving
   # Zen, re-anchor it on the window that survived and rebuild the pads, so
   # the session keeps going with the cursor's window as the new master.
+  Reanchor()
+enddef
+
+# <C-w>c / :close while Zen is active.  Close the current window for real,
+# then rebuild the pads immediately, all in this single call, so the
+# intermediate layout is never redrawn.
+def ZenClose()
+  if !exists('#zen')
+    execute 'noautocmd wincmd c'
+    return
+  endif
+  var cur = winbufnr(0)
+  if index(PadBufs(), cur) >= 0
+    # Closing a pad: just rebuild the pads around the surviving content
+    # window (the current one is a pad, so :close would leave no master).
+    Reanchor()
+    return
+  endif
+  execute 'noautocmd wincmd c'
+  Reanchor()
+enddef
+
+# <C-w>o / :only while Zen is active.  Run the real :only first (it closes
+# the other content windows), then rebuild the pads immediately, all in this
+# single call.  Because the function does not return to the main loop in
+# between, Vim only redraws once and the one-window state is never shown.
+def ZenOnly()
+  if !exists('#zen')
+    execute 'only'
+    return
+  endif
+  var target = win_getid()
+  execute 'only'
+  if win_getid() != target
+    # :only can move off the current window when it fails (E445 etc.).
+    win_gotoid(target)
+  endif
   Reanchor()
 enddef
 

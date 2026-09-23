@@ -83,6 +83,30 @@ for s:b in values(get(t:, 'zen_pads', {}))
 endfor
 call add(s:log, 'only_reanchor=' . exists('#zen') . ',' . winnr('$') . ',' . s:allpads . ',' . (s:target == winbufnr('%')))
 
+" <C-w>o / <C-w>c must be routed through the plugin so the close and the
+" pad rebuild happen in one event-loop turn.  A raw timer cannot observe
+" the intermediate frame reliably, so the contract is checked directly:
+" the keys are temporary <ScriptCmd> mappings that are removed on exit.
+let s:o_map = maparg('<C-w>o', 'n')
+let s:c_map = maparg('<C-w>c', 'n')
+call add(s:log, 'only_mapped=' . (s:o_map =~# 'ZenOnly') . ',' . (s:c_map =~# 'ZenClose'))
+
+" Closing an extra content window through the mapping must keep Zen alive
+" with the pads rebuilt (the surviving window becomes the master).
+split
+enew
+setlocal buftype=nofile
+let s:extra = winbufnr('%')
+execute 'normal ' . "\<C-w>c"
+sleep 200m
+let s:allpads = 1
+for s:b in values(get(t:, 'zen_pads', {}))
+  if bufwinnr(s:b) <= 0
+    let s:allpads = 0
+  endif
+endfor
+call add(s:log, 'close_reanchor=' . exists('#zen') . ',' . winnr('$') . ',' . s:allpads . ',' . (bufwinnr(s:extra) <= 0))
+
 call zen#Close()
 call add(s:log, 'left=' . exists('#zen') . ',' . winnr('$') . ',' . tabpagenr('$'))
 

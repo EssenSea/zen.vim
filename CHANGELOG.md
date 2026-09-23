@@ -15,6 +15,13 @@ on [Keep a Changelog](https://keepachangelog.com/).
 - `:only` / `<C-w>o`, or closing a pad by hand, no longer leaves Zen.  The
   surviving window becomes the new master and the pads are rebuilt around it
   (Reanchor()).  Replaces the previous behaviour of leaving Zen.
+- `<C-w>o` and `<C-w>c` are now temporary `<ScriptCmd>` mappings routed
+  through ZenOnly()/ZenClose().  A plain `:only` / `:close` removes the
+  window first and only then lets the deferred WinClosed handler rebuild the
+  pads, which shows a one-window layout for a few frames (a visible "jump").
+  The mapping closes and rebuilds in a single event-loop turn, so that frame
+  is never drawn.  User bindings for these keys are still left untouched, and
+  the `:only` / `:close` command forms keep working through the fallback.
 - Pads are made more thoroughly background-like: the winbar is cleared
   when the option exists, and the WinBar/WinBarNC highlight groups are
   blended in when present.  The status line is hidden for every window

@@ -673,6 +673,77 @@ Test('temporary <C-w> mappings are installed and removed', () => {
   assert_true(empty(maparg('<C-w>=', 'n')))
 })
 
+Test('<C-w>o through the plugin closes the other content windows', () => {
+  # The mapping must still run a real :only (close the other content
+  # windows), then rebuild the pads in the same turn so no one-window frame
+  # is shown.
+  zen#Open('80x20')
+  split
+  enew
+  setlocal buftype=nofile
+  var target = bufnr('%')
+  assert_equal(6, winnr('$'))
+  execute "normal \<C-w>o"
+  sleep 30m
+  assert_true(ZenActive())
+  assert_equal(5, winnr('$'))
+  assert_equal(target, bufnr('%'))
+  assert_equal(target, t:zen_master)
+  zen#Close()
+  silent! bwipeout!
+})
+
+Test('<C-w>c through the plugin closes the current content window', () => {
+  zen#Open('80x20')
+  split
+  enew
+  setlocal buftype=nofile
+  var extra = bufnr('%')
+  assert_equal(6, winnr('$'))
+  execute "normal \<C-w>c"
+  sleep 30m
+  assert_true(ZenActive())
+  # The extra content window is closed (the buffer may stay hidden, that is
+  # normal for :close), and the pads are rebuilt around the survivor.
+  assert_equal(5, winnr('$'))
+  assert_true(bufwinnr(extra) <= 0)
+  for k in ['l', 'r', 't', 'b']
+    assert_true(bufwinnr(ZenPads()[k]) > 0)
+  endfor
+  zen#Close()
+  silent! bwipeout!
+})
+
+Test('<C-w>o / <C-w>c are routed through the plugin', () => {
+  # They must be temporary <ScriptCmd> mappings, so the close and the pad
+  # rebuild happen in one event-loop turn (no one-window frame is redrawn).
+  zen#Open('80x20')
+  assert_true(maparg('<C-w>o', 'n') =~# 'ZenOnly')
+  assert_true(maparg('<C-w>c', 'n') =~# 'ZenClose')
+  assert_true(index(get(t:, 'zen_maps', []), 'o') >= 0)
+  assert_true(index(get(t:, 'zen_maps', []), 'c') >= 0)
+  zen#Close()
+  # Removed again on exit.
+  assert_true(empty(maparg('<C-w>o', 'n')))
+  assert_true(empty(maparg('<C-w>c', 'n')))
+})
+
+Test('user <C-w>o / <C-w>c mappings are never overwritten', () => {
+  execute 'nnoremap <silent> <C-w>o :let g:zen_test_user_o = 1<CR>'
+  execute 'nnoremap <silent> <C-w>c :let g:zen_test_user_c = 1<CR>'
+  zen#Open('80x20')
+  assert_true(maparg('<C-w>o', 'n') =~# 'zen_test_user_o')
+  assert_true(maparg('<C-w>c', 'n') =~# 'zen_test_user_c')
+  # The plugin must not have claimed those keys.
+  assert_true(index(get(t:, 'zen_maps', []), 'o') < 0)
+  assert_true(index(get(t:, 'zen_maps', []), 'c') < 0)
+  zen#Close()
+  assert_true(maparg('<C-w>o', 'n') =~# 'zen_test_user_o')
+  assert_true(maparg('<C-w>c', 'n') =~# 'zen_test_user_c')
+  silent! nunmap <C-w>o
+  silent! nunmap <C-w>c
+})
+
 # ---------------------------------------------------------------------------
 # 12. Window confinement: normal splits kept, full-width windows pulled back
 # ---------------------------------------------------------------------------

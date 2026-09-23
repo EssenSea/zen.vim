@@ -42,6 +42,8 @@ check_grep "help window confined to column"   '^help_confined=2,'
 check_grep "movement keys never enter a pad" '^moves_left_master=0'
 check_grep "survives a real screen resize"    '^resized=5'
 check_grep ":only re-anchors Zen"             '^only_reanchor=1,5,1,1'
+check_grep "<C-w>o / <C-w>c routed via plugin" '^only_mapped=1,1'
+check_grep "<C-w>c re-anchors in place"        '^close_reanchor=1,5,1,1'
 check_grep "leaves with one window and tab"   '^left=0,1,1'
 
 if [ "$fail" -eq 0 ]; then

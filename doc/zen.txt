@@ -175,6 +175,9 @@ key is already mapped; they are removed again on leaving:
 <C-w>=re-apply the current dimensions
 <C-w>> <C-w><adjust the width
 <C-w>+ <C-w>-adjust the height
+<C-w>c<C-w>oclose the current window / keep only it; the pads are
+rebuilt around the surviving window without a visible
+one-window flash
 
 ==============================================================================
 7. Notes	*zen-notes*

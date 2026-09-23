@@ -159,6 +159,18 @@ dropped and the cursor does not leave the content column.  Moves between
 content windows are unaffected.  A fallback autocommand bounces the cursor
 back if it reaches a pad some other way (for example with the mouse).
 
+`<C-w>c` and `<C-w>o` are routed through ZenClose() and ZenOnly().  A plain
+`:close` / `:only` removes the window first and only afterwards lets the
+deferred WinClosed handler rebuild the pads, so the screen shows a one-window
+layout for one or more frames.  The mapping runs the close and the rebuild in
+a single event-loop turn (the function does not return to the main loop in
+between), so that intermediate frame is never drawn.  As with every
+temporary mapping, a user binding for the key is left untouched.
+
+Note that a `:only` typed as a command cannot be intercepted this way; it
+still goes through the WinClosed fallback and may show the intermediate
+frame.
+
 The <Plug> mappings live in plugin/zen.vim and invoke the public API with
 |<ScriptCmd>|.  The :Zen completion function is referenced as
 `zen#Complete` because |:command-completion-customlist| only accepts the
