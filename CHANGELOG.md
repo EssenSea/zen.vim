@@ -27,6 +27,23 @@ on [Keep a Changelog](https://keepachangelog.com/).
 - `Decorate()` guards against empty elements and zero width.
 - Windows opened by `:help` and friends are confined to the content column.
 
+### Changed (internals)
+
+- Highlighting uses the built-in |hlget()| / |hlset()| API instead of
+  `synIDattr()` and `:highlight` strings.
+- Options are saved and restored with typed `&option` assignments; the
+  dynamic `:set` helper has been removed.
+- Window scanning uses |getwininfo()| instead of repeated `winbufnr()`,
+  `win_screenpos()` and `winwidth()` calls.
+- `Blank()` defers closing through |timer_start()| rather than feeding a
+  `<Plug>` key.
+- `mapnew()` is used in Decorate() so the user's option list is not copied
+  and mutated.
+- Returning to the original window uses |win_gotoid()|, which also switches
+  tab pages.
+- Pad autocommands are installed once, not rebuilt on every resize.
+- New `doc/goyo-internals.txt` documents the mechanisms used.
+
 ### Added
 
 - `test/test_goyo.vim` and `test/run.sh`: a dependency-free test suite.

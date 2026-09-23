@@ -30,7 +30,19 @@ def FlushReport()
   endif
 enddef
 
+# Discard scratch state so tests do not leak modified buffers or windows.
+def ResetScratch()
+  if goyo#IsActive()
+    goyo#Execute(true, '')
+  endif
+  silent! only!
+  silent! tabonly!
+  silent! enew!
+  setlocal nomodified
+enddef
+
 def Test(name: string, Fn: func)
+  ResetScratch()
   try
     Fn()
     passed += 1
@@ -41,6 +53,7 @@ def Test(name: string, Fn: func)
     Report('FAIL - ' .. name .. ': ' .. v:exception)
     echohl None
   endtry
+  ResetScratch()
 enddef
 
 # ---------------------------------------------------------------------------
@@ -198,6 +211,17 @@ Test('winwidth/winheight restored in correct order', () => {
   &winminheight = save_wmh
 })
 
+Test('fillchars and guioptions-like string options are restored', () => {
+  var saved = &fillchars
+  set fillchars=vert:\ ,stl:\ ,stlnc:\ 
+  var during_on = ''
+  goyo#Execute(false, '80x20')
+  during_on = &fillchars
+  goyo#Execute(true, '')
+  assert_equal(saved, &fillchars)
+  assert_true(during_on =~ 'stl:')
+})
+
 # ---------------------------------------------------------------------------
 # 5. Buffer preservation
 # ---------------------------------------------------------------------------
@@ -213,6 +237,21 @@ Test(':edit another file during Goyo survives exit', () => {
   assert_equal(tmp2, bufname('%'))
   silent! execute 'bwipeout! ' .. tmp
   silent! execute 'bwipeout! ' .. tmp2
+})
+
+Test('leaving Goyo returns to the original tab and window', () => {
+  # Build a second tab with two windows and enter Goyo from the right one.
+  tabnew
+  vsplit
+  wincmd l
+  var orig_winid = win_getid()
+  var orig_tab = tabpagenr()
+  goyo#Execute(false, '80x20')
+  assert_true(goyo#IsActive())
+  goyo#Execute(true, '')
+  assert_equal(orig_tab, tabpagenr())
+  assert_equal(orig_winid, win_getid())
+  assert_equal(2, tabpagenr('$'))
 })
 
 # ---------------------------------------------------------------------------
@@ -301,6 +340,14 @@ Test('g:goyo_callbacks fire on enter and leave', () => {
   assert_equal(['enter'], calls)
   goyo#Execute(true, '')
   assert_equal(['enter', 'leave'], calls)
+  unlet g:goyo_callbacks
+})
+
+Test('invalid g:goyo_callbacks entries are ignored', () => {
+  g:goyo_callbacks = ['not-a-funcref', 42]
+  goyo#Execute(false, '80x20')
+  assert_true(goyo#IsActive())
+  goyo#Execute(true, '')
   unlet g:goyo_callbacks
 })
 

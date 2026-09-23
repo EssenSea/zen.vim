@@ -16,6 +16,15 @@ goyo-command	goyo.txt	/*goyo-command*
 goyo-confine	goyo.txt	/*goyo-confine*
 goyo-development	goyo.txt	/*goyo-development*
 goyo-installation	goyo.txt	/*goyo-installation*
+goyo-internals-autocmds	goyo-internals.txt	/*goyo-internals-autocmds*
+goyo-internals-contents	goyo-internals.txt	/*goyo-internals-contents*
+goyo-internals-highlight	goyo-internals.txt	/*goyo-internals-highlight*
+goyo-internals-mappings	goyo-internals.txt	/*goyo-internals-mappings*
+goyo-internals-messages	goyo-internals.txt	/*goyo-internals-messages*
+goyo-internals-options	goyo-internals.txt	/*goyo-internals-options*
+goyo-internals-timers	goyo-internals.txt	/*goyo-internals-timers*
+goyo-internals-windows	goyo-internals.txt	/*goyo-internals-windows*
+goyo-internals.txt	goyo-internals.txt	/*goyo-internals.txt*
 goyo-introduction	goyo.txt	/*goyo-introduction*
 goyo-mappings	goyo.txt	/*goyo-mappings*
 goyo-notes	goyo.txt	/*goyo-notes*

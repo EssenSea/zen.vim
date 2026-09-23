@@ -54,14 +54,16 @@ See `:help goyo` for the full manual.
 ## Layout
 
 ```
-plugin/goyo.vim     loads the plugin, defines :Goyo and <Plug> mappings
-autoload/goyo.vim   the implementation (Vim9script, exported API)
-doc/goyo.txt        help file
-doc/tags            help tags (regenerate with :helptags doc)
-lang/               gettext catalogues (goyo.pot, <lang>/LC_MESSAGES/goyo.mo)
-test/test_goyo.vim  test suite
-test/run.sh         test runner
-Makefile            common tasks
+plugin/goyo.vim          loads the plugin, defines :Goyo and <Plug> mappings
+autoload/goyo.vim        the implementation (Vim9script, exported API)
+doc/goyo.txt             help file
+doc/goyo-internals.txt   notes on the built-in mechanisms used
+doc/tags                 help tags (regenerate with :helptags doc)
+lang/                    gettext catalogues (goyo.pot, <lang>/LC_MESSAGES/goyo.mo)
+test/test_goyo.vim       test suite
+test/conformance.sh      package-convention checks
+test/run.sh              test runner
+Makefile                 common tasks
 ```
 
 ## Development

@@ -1,0 +1,125 @@
+*goyo-internals.txt*	For Vim version 9.1.	Last change: 2026 Sep 23
+
+
+  VIM REFERENCE MANUAL  by goyo.vim contributors
+
+goyo.vim implementation notes*goyo-internals*
+==============================================================================
+
+This file documents which Vim built-in mechanisms the implementation uses and
+why.  It is aimed at people maintaining goyo.vim.  See |goyo| for the user
+documentation.
+
+1. Section overview	*goyo-internals-contents*
+
+1. Section overview	|goyo-internals-contents|
+2. Windows and tabs	|goyo-internals-windows|
+3. Options	|goyo-internals-options|
+4. Highlighting	|goyo-internals-highlight|
+5. Mappings	|goyo-internals-mappings|
+6. Autocommands and events	|goyo-internals-autocmds|
+7. Deferred actions	|goyo-internals-timers|
+8. Messages	|goyo-internals-messages|
+
+==============================================================================
+2. Windows and tabs	*goyo-internals-windows*
+
+Window information ~
+|getwininfo()| returns a List of Dictionaries, one per window, with
+the buffer number, geometry and |window-ID|.  It is used instead of
+repeated |winbufnr()|, |win_screenpos()| and |winwidth()| calls when
+scanning the windows of the current tab:
+  * |goyo-internals-windows| / ConfineWindows()
+  * GoyoOff() when collecting the content-window layout.
+
+Window identity ~
+A window's |window-ID| is stable while the window exists, so it is
+used to remember the master window (t:goyo_winid) and the window Goyo
+started from (t:goyo_orig_winid).
+
+|win_id2win()| only searches the current tab page; |win_gotoid()| can
+also change the current tab page.  GoyoOff() therefore calls
+|win_gotoid()| directly when returning to the original window.
+
+Layout ~
+The pads are ordinary windows created with |:topleft| / |:botright|
+`:new` and resized with |:resize| (|:vertical| for the side pads).
+Window-local flags |winfixwidth| / |winfixheight| keep them in place.
+
+==============================================================================
+3. Options	*goyo-internals-options*
+
+Saving and restoring ~
+The global options changed while Goyo is active are copied into a
+Dictionary by SaveOptions() and restored by RestoreOptions().  Each
+option is read and written with the &option syntax rather than
+through |:set| strings, so no escaping is needed and Vim9script type
+checking applies.
+
+'winwidth' must not be smaller than 'winminwidth', and likewise for
+the heights.  RestoreOptions() therefore enlarges the current values,
+sets the minimum, then sets the target value; this avoids E591/E592.
+
+The window sizes are forced to 1 so that the pads alone decide the geometry.
+
+==============================================================================
+4. Highlighting	*goyo-internals-highlight*
+
+Reading ~
+GroupBg() reads the background colour of a group with |hlget()| using
+the resolve flag, which follows `:highlight-link` chains.  The GUI
+colour is preferred when 'termguicolors' is set or the GUI is running,
+otherwise the cterm colour is used.
+
+Writing ~
+SetGroupColors() modifies several groups at once with a single
+|hlset()| call.  An empty `cterm` / `gui` Dictionary clears the
+attribute flags, matching the original `:highlight Group ... gui=NONE`
+behaviour.
+
+No string-based `:highlight` command is built, so group names cannot
+be misparsed.
+
+==============================================================================
+5. Mappings	*goyo-internals-mappings*
+
+Each temporary `<C-w>` mapping is only installed when |maparg()| reports
+that the key is free, so user mappings are never clobbered.  The keys that
+were installed are remembered in t:goyo_maps and removed with |:nunmap| on
+exit.
+
+The <Plug> mappings live in plugin/goyo.vim and invoke the exported API with
+|<ScriptCmd>|.  The :Goyo completion function is referenced as
+`goyo#Complete` because |:command-completion-customlist| only accepts the
+legacy autoload name, not the imported namespace.
+
+==============================================================================
+6. Autocommands and events	*goyo-internals-autocmds*
+
+All autocommands are placed in the `goyo` and `goyo_pad` |autocmd-groups|.
+The groups are emptied and removed in GoyoOff(); |exists()| on the group name
+is used as the session flag.
+
+The pad autocommands use the `<buffer=N>` form so that they only fire for the
+pad buffers, and they are installed once (after the first ResizePads() call),
+not on every resize.
+
+`User` events |GoyoEnter| and |GoyoLeave| are fired with |:doautocmd| so other
+plugins can hook into the session.
+
+==============================================================================
+7. Deferred actions	*goyo-internals-timers*
+
+Closing the session from inside a CursorMoved/WinEnter autocommand is unsafe
+because windows may not be changed there.  Blank() therefore schedules the
+close with |timer_start()| at zero delay, which runs the callback when Vim is
+back in the main loop.  This does not depend on the user's mappings, unlike
+feeding a <Plug> key.
+
+==============================================================================
+8. Messages	*goyo-internals-messages*
+
+User-visible text is passed through |gettext()|; the domain is bound with
+|bindtextdomain()| to the package `lang/` directory.  See |goyo-translation|.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:

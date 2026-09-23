@@ -182,13 +182,14 @@ the `.po` and `.mo` files.
 9. Development	*goyo-development*
 
 The source is organised as a Vim package: >
-
-plugin/goyo.vimloads the plugin, defines :Goyo
-autoload/goyo.vimthe implementation (Vim9script)
-doc/goyo.txtthis help file
-lang/message catalogues
-test/test suite
+	plugin/goyo.vim		loads the plugin, defines :Goyo
+	autoload/goyo.vim	the implementation (Vim9script)
+	doc/goyo.txt		this help file
+	doc/goyo-internals.txt	implementation notes
+	lang/			message catalogues
+	test/			test suite
 <
+See |goyo-internals| for the built-in mechanisms the implementation uses.
 Run the test suite with: >
 
 make test

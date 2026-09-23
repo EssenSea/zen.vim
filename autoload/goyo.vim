@@ -53,29 +53,41 @@ def Clamp(val: number, minv: number, maxv: number): number
   return min([max([val, minv]), maxv])
 enddef
 
-# Read a highlight-group attribute.  synIDattr() returns a Number (-1) on
-# Vim and a String ('' or '#rrggbb') on GVim depending on the attribute.
-def Highlight(group: string, attr: string): any
-  return synIDattr(synIDtrans(hlID(group)), attr)
-enddef
-
-# Set a highlight attribute, choosing gui or cterm automatically.
-def SetHighlight(group: string, attr: string, color: string)
-  var use_gui = has('gui_running') || (has('termguicolors') && &termguicolors)
-  execute printf('highlight %s %s%s=%s', group, use_gui ? 'gui' : 'cterm', attr, color)
-enddef
-
-# Restore an option through :set, avoiding the Vim9 restriction on
-# `:let &opt = ...`.  Strings have characters escaped that would end or
-# change the meaning of the :set argument.
-def RestoreOption(name: string, value: any)
-  if type(value) == v:t_bool
-    execute 'set ' .. (value ? '' : 'no') .. name
-  elseif type(value) == v:t_number
-    execute 'set ' .. name .. '=' .. value
-  elseif type(value) == v:t_string
-    execute 'set ' .. name .. '=' .. escape(value, " \t|\\\"")
+# Return the background colour of a highlight group using the built-in
+# highlight API (|hlget()|).  The group link is resolved recursively so that
+# the effective value is used.  Returns an empty string when no colour is
+# defined.
+def GroupBg(group: string): string
+  var info = hlget(group, true)
+  if empty(info)
+    return ''
   endif
+  var entry = info[0]
+  if get(entry, 'cleared', false)
+    return ''
+  endif
+  # Prefer the GUI colour with 'termguicolors', otherwise the cterm colour.
+  if has('gui_running') || (has('termguicolors') && &termguicolors)
+    return get(entry, 'guibg', '')
+  endif
+  return get(entry, 'ctermbg', '')
+enddef
+
+# Apply a foreground and background colour to a list of highlight groups in a
+# single hlset() call.  A colour of 'NONE' clears the corresponding attribute.
+def SetGroupColors(groups: list<string>, fg: string, bg: string)
+  var use_gui = has('gui_running') || (has('termguicolors') && &termguicolors)
+  var items: list<dict<any>> = []
+  for group in groups
+    if use_gui
+      # gui: {} clears the attribute flags (bold, ...), as in the original
+      # `:highlight Group guifg=.. guibg=.. gui=NONE`.
+      items->add({name: group, guifg: fg, guibg: bg, gui: {}})
+    else
+      items->add({name: group, ctermfg: fg, ctermbg: bg, cterm: {}})
+    endif
+  endfor
+  hlset(items)
 enddef
 
 # Parse a size expression: a Number (rows/columns), or a 'N%' String
@@ -178,21 +190,24 @@ def InitPad(command: string): number
   return bufnr
 enddef
 
-# Resize the window showing a pad buffer and install the autocommands that
-# make the cursor bounce back when it reaches the padding.
-def SetupPad(bufnr: number, vert: bool, size: number, repel: string)
+# Bind the autocommands that bounce the cursor out of a pad.  Called once per
+# pad when the session is created; resizing must not touch them.
+def BindPadAutocmd(bufnr: number, repel: string)
+  augroup goyo_pad
+    execute 'autocmd WinEnter,CursorMoved <buffer=' .. bufnr .. '> ++nested'
+      .. ' Blank("' .. repel .. '")'
+    execute 'autocmd WinLeave <buffer=' .. bufnr .. '> HideStatusline()'
+  augroup END
+enddef
+
+# Resize the window showing a pad buffer and refill its contents.
+def SetupPad(bufnr: number, vert: bool, size: number)
   var win = bufwinnr(bufnr)
   if win <= 0
     return
   endif
   execute ':' .. win .. 'wincmd w'
   execute (vert ? 'vertical ' : '') .. 'resize ' .. max([0, size])
-
-  augroup goyo_pad
-    execute 'autocmd WinEnter,CursorMoved <buffer> ++nested'
-      .. ' Blank("' .. repel .. '")'
-    execute 'autocmd WinLeave <buffer> HideStatusline()'
-  augroup END
 
   # Clear the buffer; append blank lines to hide scroll bars if needed.
   setlocal modifiable
@@ -217,7 +232,11 @@ def Blank(repel: string)
   var pads = get(t:, 'goyo_pads', {})
   if bufwinnr(pads.r) <= bufwinnr(pads.l) + 1
       || bufwinnr(pads.b) <= bufwinnr(pads.t) + 3
-    execute 'silent! call feedkeys("\<Plug>(goyo-off)")'
+    # The content column is too small to be useful; leave Goyo.  Closing
+    # windows from inside CursorMoved/WinEnter is unsafe, so defer it via a
+    # zero-delay timer rather than feeding a <Plug> key (which would depend
+    # on the user's mappings).
+    timer_start(0, (_: number) => GoyoOff())
   endif
   execute 'noautocmd wincmd ' .. repel
 enddef
@@ -231,15 +250,16 @@ def Decorate()
     return
   endif
 
-  var elements: list<string> = get(g:, 'goyo_decoration_elements', ['~'])
+  # mapnew() leaves g:goyo_decoration_elements untouched.
+  var elements: list<string> = mapnew(
+    get(g:, 'goyo_decoration_elements', ['~']),
+    (_: number, e: string): string => printf('%1s', e))
   # Drop empty elements so the grid width cannot become zero.
-  elements = filter(map(copy(elements),
-    (_: number, e: string): string => printf('%1s', e)),
-    (_: number, e: string): bool => !empty(e))
+  elements = filter(elements, (_: number, e: string): bool => !empty(e))
   if empty(elements)
     return
   endif
-  var grid_width = max(map(copy(elements), (_: number, e: string): number => len(e)))
+  var grid_width = max(mapnew(elements, (_: number, e: string): number => len(e)))
   var elements_count = len(elements)
   var blank = repeat(' ', grid_width)
   var density = get(g:, 'goyo_decoration_density', 0.0)
@@ -330,10 +350,6 @@ enddef
 
 # Resize the four pads so the content window gets the requested geometry.
 def ResizePads()
-  augroup goyo_pad
-    autocmd!
-  augroup END
-
   var dim = t:goyo_dim
   dim.width = Clamp(dim.width, 2, &columns)
   dim.height = Clamp(dim.height, 2, &lines)
@@ -342,15 +358,15 @@ def ResizePads()
   var yoff = Clamp(dim.yoff, -vmargin, vmargin)
   var top = vmargin + yoff
   var bot = vmargin - yoff - 1
-  SetupPad(t:goyo_pads.t, false, top, 'j')
-  SetupPad(t:goyo_pads.b, false, bot, 'k')
+  SetupPad(t:goyo_pads.t, false, top)
+  SetupPad(t:goyo_pads.b, false, bot)
 
   var nwidth = max([len(string(line('$'))) + 1, &numberwidth])
   var width = dim.width + (&number ? nwidth : 0)
   var hmargin = max([0, (&columns - width) / 2 - 1])
   var xoff = Clamp(dim.xoff, -hmargin, hmargin)
-  SetupPad(t:goyo_pads.l, true, hmargin + xoff, 'l')
-  SetupPad(t:goyo_pads.r, true, hmargin - xoff, 'h')
+  SetupPad(t:goyo_pads.l, true, hmargin + xoff)
+  SetupPad(t:goyo_pads.r, true, hmargin - xoff)
 enddef
 
 # Re-parse the expression and re-apply the geometry (<C-w>=).
@@ -374,19 +390,17 @@ enddef
 # ---------------------------------------------------------------------------
 
 # Blend interface elements into the background for a distraction-free look.
+# All groups are updated with a single hlset() call.
 def Tranquilize()
-  var bg = Highlight('Normal', 'bg#')
-  for grp in ['NonText', 'FoldColumn', 'ColorColumn', 'VertSplit',
-              'StatusLine', 'StatusLineNC', 'SignColumn']
-    if empty(bg) || (type(bg) == v:t_number && bg == -1)
-      SetHighlight(grp, 'fg', get(g:, 'goyo_bg', 'black'))
-      SetHighlight(grp, 'bg', 'NONE')
-    else
-      SetHighlight(grp, 'fg', bg)
-      SetHighlight(grp, 'bg', bg)
-    endif
-    SetHighlight(grp, '', 'NONE')
-  endfor
+  var groups = ['NonText', 'FoldColumn', 'ColorColumn', 'VertSplit',
+                'StatusLine', 'StatusLineNC', 'SignColumn']
+  var bg = GroupBg('Normal')
+  if empty(bg)
+    # No usable background colour: fall back to g:goyo_bg with no background.
+    SetGroupColors(groups, get(g:, 'goyo_bg', 'black'), 'NONE')
+  else
+    SetGroupColors(groups, bg, bg)
+  endif
 enddef
 
 # ---------------------------------------------------------------------------
@@ -428,17 +442,22 @@ def ConfineWindows()
   var bounds = ContentBounds()
   var left = bounds[0]
   var right = bounds[1]
+  var pads = t:goyo_pads
+  var tabnr = tabpagenr()
 
-  for win in range(1, winnr('$'))
-    var buf = winbufnr(win)
-    if buf == t:goyo_pads.t || buf == t:goyo_pads.b
-        || buf == t:goyo_pads.l || buf == t:goyo_pads.r
-        || win == master_win
+  # getwininfo() returns one dictionary per window with its position and size,
+  # so no repeated winbufnr()/win_screenpos()/winwidth() calls are needed.
+  for info in getwininfo()
+    if info.tabnr != tabnr
       continue
     endif
-
-    var wincol = win_screenpos(win)[1]
-    if wincol >= left && wincol + winwidth(win) - 1 <= right
+    var buf = info.bufnr
+    if buf == pads.t || buf == pads.b || buf == pads.l || buf == pads.r
+        || info.winnr == master_win
+      continue
+    endif
+    var wincol = info.wincol
+    if wincol >= left && wincol + info.width - 1 <= right
       continue
     endif
 
@@ -446,7 +465,7 @@ def ConfineWindows()
     var v = winsaveview()
     var target = buf
     execute ':' .. master_win .. 'wincmd w'
-    execute ':' .. win .. 'wincmd c'
+    execute ':' .. info.winnr .. 'wincmd c'
     execute 'sbuffer ' .. target
     winrestview(v)
     return
@@ -538,10 +557,10 @@ def RestoreOptions(revert: dict<any>)
   # The order therefore is: enlarge the current values enough to hold the
   # target minimum, set the minimum, then set the target value.  Otherwise
   # Vim raises "E592/E591: cannot be smaller than ...".
-  var wmw = remove(revert, 'winminwidth')
-  var ww  = remove(revert, 'winwidth')
-  var wmh = remove(revert, 'winminheight')
-  var wh  = remove(revert, 'winheight')
+  var wmw: number = revert.winminwidth
+  var ww: number = revert.winwidth
+  var wmh: number = revert.winminheight
+  var wh: number = revert.winheight
 
   # 1) Enlarge the current values enough to hold the target minimum.
   &winwidth = Clamp(max([wmw, ww, &winwidth]), 1, &columns)
@@ -554,9 +573,17 @@ def RestoreOptions(revert: dict<any>)
   &winwidth = Clamp(max([wmw, ww]), &winminwidth, &columns)
   &winheight = Clamp(max([wmh, wh]), &winminheight, &lines)
 
-  for [k, v] in items(revert)
-    RestoreOption(k, v)
-  endfor
+  # The remaining options are assigned directly (Vim9-typed), so no :set
+  # string escaping is involved.
+  &laststatus = revert.laststatus
+  &showtabline = revert.showtabline
+  &fillchars = revert.fillchars
+  &ruler = revert.ruler
+  &sidescroll = revert.sidescroll
+  &sidescrolloff = revert.sidescrolloff
+  if has_key(revert, 'guioptions')
+    &guioptions = revert.guioptions
+  endif
 enddef
 
 # Enter Goyo.
@@ -626,6 +653,14 @@ def GoyoOn(dim_arg: string)
   t:goyo_pads.b = InitPad('botright new')
 
   ResizePads()
+
+  # Bind the bounce-back autocommands once, after the pads are laid out;
+  # ResizePads() itself only resizes them.
+  BindPadAutocmd(t:goyo_pads.l, 'l')
+  BindPadAutocmd(t:goyo_pads.r, 'h')
+  BindPadAutocmd(t:goyo_pads.t, 'j')
+  BindPadAutocmd(t:goyo_pads.b, 'k')
+
   Tranquilize()
 
   augroup goyo
@@ -642,8 +677,9 @@ def GoyoOn(dim_arg: string)
   augroup END
 
   HideStatusline()
-  if exists('g:goyo_callbacks') && len(g:goyo_callbacks) > 0
-    g:goyo_callbacks[0]()
+  var callbacks = get(g:, 'goyo_callbacks', [])
+  if len(callbacks) > 0 && type(callbacks[0]) == v:t_func
+    callbacks[0]()
   endif
   doautocmd <nomodeline> User GoyoEnter
 enddef
@@ -672,21 +708,25 @@ def GoyoOff()
   var pads = get(t:, 'goyo_pads', {})
 
   # Collect buffer, cursor and screen position of every content window.
+  # getwininfo() supplies the geometry, getcurpos() the cursor.
   var content: list<dict<any>> = []
-  for win in range(1, winnr('$'))
-    var buf = winbufnr(win)
+  var tabnr = tabpagenr()
+  for info in getwininfo()
+    if info.tabnr != tabnr
+      continue
+    endif
+    var buf = info.bufnr
     if buf == get(pads, 't', -1) || buf == get(pads, 'b', -1)
         || buf == get(pads, 'l', -1) || buf == get(pads, 'r', -1)
       continue
     endif
-    var wid = win_getid(win)
-    var pos = win_screenpos(win)
+    var cur = getcurpos(info.winid)
     content->add({
       buf: buf,
-      lnum: getcurpos(wid)[1],
-      col: getcurpos(wid)[2],
-      row: pos[0],
-      col_pos: pos[1],
+      lnum: cur[1],
+      col: cur[2],
+      row: info.winrow,
+      col_pos: info.wincol,
     })
   endfor
   content->sort((a, b) => a.row != b.row ? a.row - b.row : a.col_pos - b.col_pos)
@@ -694,11 +734,12 @@ def GoyoOff()
   var goyo_tab = tabpagenr()
 
   # Go back to the original tab/window and rebuild the layout there.
-  # Prefer the original window id (tab numbers may have changed), fall
-  # back to the recorded tab number.
+  # win_gotoid() also switches tab pages, so it is used first; it returns
+  # false when the window no longer exists, in which case fall back to the
+  # recorded tab number.
   var orig_tab = get(t:, 'goyo_orig_tab', 0)
-  if orig_winid > 0 && win_id2win(orig_winid) > 0
-    win_gotoid(orig_winid)
+  if orig_winid > 0 && win_gotoid(orig_winid)
+    # done
   elseif orig_tab > 0 && orig_tab <= tabpagenr('$')
     execute ':' .. orig_tab .. 'tabnext'
   endif
@@ -740,8 +781,9 @@ def GoyoOff()
 
   EnablePlugins(disabled)
 
-  if exists('g:goyo_callbacks') && len(g:goyo_callbacks) > 1
-    g:goyo_callbacks[1]()
+  var callbacks = get(g:, 'goyo_callbacks', [])
+  if len(callbacks) > 1 && type(callbacks[1]) == v:t_func
+    callbacks[1]()
   endif
   doautocmd <nomodeline> User GoyoLeave
 enddef

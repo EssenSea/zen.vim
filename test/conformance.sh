@@ -24,7 +24,7 @@ check() { # description, shell command
 }
 
 check "package layout (plugin/autoload/doc/tags)" \
-  "[ -f plugin/goyo.vim ] && [ -f autoload/goyo.vim ] && [ -f doc/goyo.txt ] && [ -s doc/tags ]"
+  "[ -f plugin/goyo.vim ] && [ -f autoload/goyo.vim ] && [ -f doc/goyo.txt ] && [ -f doc/goyo-internals.txt ] && [ -s doc/tags ]"
 
 check "plugin is Vim9script" \
   "head -1 plugin/goyo.vim | grep -q '^vim9script'"
@@ -64,8 +64,10 @@ check "all source comments are in English" \
 
 check "help text fits in 78 columns" \
   "python3 -c \"
+import glob
 ok = True
-for line in open('doc/goyo.txt'):
+for fn in glob.glob('doc/*.txt'):
+  for line in open(fn):
     col = 0
     for ch in line.rstrip('\\n'):
         col = (col // 8 + 1) * 8 if ch == '\t' else col + 1
