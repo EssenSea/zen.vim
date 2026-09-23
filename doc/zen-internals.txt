@@ -11,7 +11,7 @@ zen.vim implementation notes	*zen-internals*
 
 This file documents which Vim built-in mechanisms the implementation uses and
 why.  It is aimed at people maintaining zen.vim.  See |zen| for the user
-documentation.  Only Vim 9.1.0000 and newer is supported.
+documentation.  Only Vim 9.1.1652 and newer is supported.
 
 1. Section overview	*zen-internals-contents*
 
@@ -210,11 +210,14 @@ behind; the session stays valid and can be closed as usual.
 ==============================================================================
 11. Vim version sensitivity	*zen-internals-version*
 
-The plugin targets Vim 9.1.0000 or newer, but a few of the built-ins it uses
-arrived later than that.  They are probed before use rather than assumed:
+The plugin targets Vim 9.1.1652 or newer.  The features it uses arrived no
+later than that, but they are still probed rather than assumed, so the plugin
+also works on unusual builds:
 
-'winfixbuf'added in 9.1.0147; HasWinFixBuf() checks exists('&winfixbuf')
-and the option access is short-circuited behind it.
+'winfixbuf' was added in 9.1.0147; HasWinFixBuf() checks exists('&winfixbuf')
+and the option access is short-circuited behind it.  gettext() and
+bindtextdomain() (9.1.0509) need the +multi_lang compile-time feature, so
+they are probed too.
 
 The oldest built-ins the plugin relies on are stable but old: maparg() (Vim
 5), and matchlist(), str2nr(), winsaveview()/winrestview(), getbufvar() and
@@ -224,7 +227,7 @@ WinResized (9.0.0917).
 
 Because Vim changes the *shape* of some return values over time, the contract
 the plugin depends on is pinned by test/api.vim and run by `make api` in CI
-on Vim 9.1.0000, 9.1.1000, 9.1.2000 and master.  If a future Vim renames a
+on Vim 9.1.1652, 9.1.2000 and master.  If a future Vim renames a
 field, drops an event or changes a return type, `make api` reports it in CI
 rather than at runtime.  A weekly scheduled CI run checks this even when the
 plugin itself has not changed.

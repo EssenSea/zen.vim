@@ -30,15 +30,33 @@ vim9script
 
 # ---------------------------------------------------------------------------
 # Message translation.  The package identifier is "zen" (see
-# :help package-translation).  The lang/ directory is optional; when it
-# is absent gettext() simply returns the untranslated string.
+# :help package-translation).  The lang/ directory is optional; when it is
+# absent the message is returned untranslated.
+#
+# gettext() and bindtextdomain() are present from patch 9.1.0509 (below the
+# 9.1.1652 minimum) but also need the +multi_lang compile-time feature, which
+# can be missing, so they are probed rather than assumed.
 # ---------------------------------------------------------------------------
-try
-  bindtextdomain('zen',
-    fnamemodify(expand('<sfile>'), ':p:h') .. '/../lang/')
-catch
-  # bindtextdomain() is only available with the +multi_lang feature; ignore.
-endtry
+const HAS_GETTEXT: bool = exists('*gettext') == 1
+const HAS_BINDTEXTDOMAIN: bool = exists('*bindtextdomain') == 1
+
+# Translate a message, or return it unchanged when gettext() is unavailable.
+# call() resolves the function at run time, so the body still compiles on a
+# build that has no gettext() at all.
+def T(msg: string): string
+  if HAS_GETTEXT
+    return string(call('gettext', [msg, 'zen']))
+  endif
+  return msg
+enddef
+
+if HAS_BINDTEXTDOMAIN
+  try
+    bindtextdomain('zen', fnamemodify(expand('<sfile>'), ':p:h') .. '/../lang/')
+  catch
+    # bindtextdomain() can fail (for example out of memory); ignore it.
+  endtry
+endif
 
 # Highlight groups whose attributes are blended into the background while
 # Zen is active.  They are saved before Tranquilize() and restored on exit.
@@ -366,7 +384,7 @@ def ParseArg(arg: string): dict<number>
     .. '\s*$')
   if empty(parts)
     echohl WarningMsg
-    echomsg gettext('zen: invalid dimension expression: ') .. arg
+    echomsg T('zen: invalid dimension expression: ') .. arg
     echohl None
     return {}
   endif
@@ -524,8 +542,8 @@ enddef
 # direction from screen coordinates.
 
 # Whether 'winfixbuf' is available.  The option was added in Vim 9.1.0147,
-# which is later than the 9.1.0000 this plugin otherwise requires, so it must
-# be probed rather than assumed.
+# below the 9.1.1652 minimum, but it is still probed rather than assumed so
+# the plugin also works on unusual builds.
 def HasWinFixBuf(): bool
   return exists('&winfixbuf') == 1
 enddef

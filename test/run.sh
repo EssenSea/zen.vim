@@ -14,7 +14,7 @@
 #   1..N     number of failing tests
 #   2        the chosen editor cannot run Vim9script tests
 #
-# The plugin is written in Vim9script and needs Vim 9.1.0000+.  If the chosen
+# The plugin is written in Vim9script and needs Vim 9.1.1652+.  If the chosen
 # editor cannot execute Vim9script, the runner reports this and exits.
 # ============================================================================
 set -eu

@@ -5,6 +5,14 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- Raised the minimum supported Vim to **9.1.1652** (it was 9.1.0000).
+  plugin/zen.vim, `ci.sh` and the CI matrix now require 9.1.1652, which
+  covers the features used by the implementation: gettext()/bindtextdomain()
+  (9.1.0509) and 'winfixbuf' (9.1.0147) are guaranteed present from this
+  version on.  They are still probed, so unusual builds keep working.
+
 ### Added
 
 - Prominent **LLM POWERED** notices: the plugin and its tests/docs were

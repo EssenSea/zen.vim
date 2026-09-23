@@ -4,7 +4,7 @@
 # harness.
 #
 # Common tasks.  The test suite uses Vim's built-in assert_*() functions and
-# needs Vim 9.1.0000+ with +vim9script.  See CONTRIBUTING.md.
+# needs Vim 9.1.1652+ with +vim9script.  See CONTRIBUTING.md.
 
 VIM    ?= vim
 NVIM   ?= nvim
@@ -63,7 +63,7 @@ install:
 bench:
 	@sh test/bench.sh
 
-# Run the same checks as CI (requires Vim 9.1.0000+ in $PATH).
+# Run the same checks as CI (requires Vim 9.1.1652+ in $PATH).
 ci:
 	@sh ci.sh
 

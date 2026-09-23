@@ -28,7 +28,7 @@ plugins (`:help package-create`).
 
 ## Requirements
 
-- Vim **9.1.0000+** built with `+vim9script`.
+- Vim **9.1.1652+** built with `+vim9script`.
 - Optional translations need `+multi_lang`.
 
 ## Installation

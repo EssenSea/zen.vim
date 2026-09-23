@@ -17,9 +17,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Only Vim 9.1 and newer is supported.  The oldest entry is the lower
-        # bound; master catches upcoming Vim changes early.
-        vim: [ 'v9.1.0000', 'v9.1.1000', 'v9.1.2000', 'master' ]
+        # The minimum supported version is Vim 9.1.1652; master catches
+        # upcoming Vim changes early.
+        vim: [ 'v9.1.1652', 'v9.1.2000', 'master' ]
 
     steps:
       - name: Checkout plugin
@@ -44,8 +44,11 @@ jobs:
           make -j"$(nproc)"
           sudo make install
 
-      - name: Show Vim version
-        run: vim --version | head -5
+      - name: Show Vim version and features
+        run: |
+          vim --version | head -5
+          echo "--- relevant features ---"
+          vim --version | grep -oE '[+-](multi_lang|gettext|vim9script|timers|terminal)' || true
 
       # The API contract test runs first: it pins the Vim built-ins, events and
       # options the plugin relies on, so a Vim change is reported right here.

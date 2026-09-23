@@ -9,7 +9,7 @@ request.
 
 ## Requirements
 
-- Vim 9.1.0000 or newer with `+vim9script`.
+- Vim 9.1.1652 or newer with `+vim9script`.
 - Use the bundled test suite (`make test`) before submitting.
 
 ## Coding style
@@ -50,15 +50,16 @@ make ci        # or: sh ci.sh
 
 It runs the conformance checks, the API contract tests, the test suite, the
 PTY checks and the benchmarks against the Vim in `$PATH`, which must be Vim
-9.1.0000 or newer.  The PTY checks need `python3` and a real terminal; they
+9.1.1652 or newer.  The PTY checks need `python3` and a real terminal; they
 exercise the screen-dependent paths.
 Only Vim is supported; Neovim is out of scope.
 
 When you start using a new Vim built-in, event or option, add it to
 `test/api.vim` (see `make api`).  That test pins the contract the plugin
 relies on, so a change in Vim is reported in CI instead of at runtime.  Vim
-sometimes adds features after 9.1.0000 (for example 'winfixbuf' arrived in
-9.1.0147); probe such features with `exists()` rather than assuming them.
+sometimes compiles without optional features (for example `+multi_lang`, or
+the 'winfixbuf' option on builds before 9.1.0147); probe such features with
+`exists()` rather than assuming them.
 
 ## Tests
 

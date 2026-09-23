@@ -22,12 +22,14 @@
 " :vim9script, exits cleanly instead of reporting an error.  Everything after
 " the :vim9script command is Vim9 script.
 
-" zen.vim needs Vim 9.1.0000: import autoload, typed export def, <ScriptCmd>
-" and Vim9script in general.  See doc/zen.txt (Requirements).
-if !has('patch-9.1.0000')
+" zen.vim needs Vim 9.1.1652: import autoload, typed export def, <ScriptCmd>,
+" Vim9script in general, and the features used by the implementation such as
+" gettext()/bindtextdomain() (9.1.0509) and 'winfixbuf' (9.1.0147).  See
+" doc/zen.txt (Requirements).
+if !has('patch-9.1.1652')
   if !get(g:, 'zen_disable_legacy_warning', 0)
     echohl WarningMsg
-    echomsg 'zen.vim needs Vim 9.1.0000 or newer; the plugin is not loaded'
+    echomsg 'zen.vim needs Vim 9.1.1652 or newer; the plugin is not loaded'
     echohl None
   endif
   finish

@@ -39,10 +39,10 @@ enddef
 
 # --- functions the plugin calls -------------------------------------------
 const FUNCTIONS: list<string> = [
-  'append', 'bindtextdomain', 'bufexists', 'bufwinnr', 'bufnr', 'cursor',
+  'append', 'bufexists', 'bufwinnr', 'bufnr', 'cursor',
   'deepcopy', 'deletebufline', 'empty', 'escape', 'exists', 'expand',
   'extend', 'filter', 'fnamemodify', 'get', 'getbufline', 'getbufvar',
-  'getcurpos', 'gettext', 'getwininfo', 'has', 'hlget', 'hlset', 'index',
+  'getcurpos', 'getwininfo', 'has', 'hlget', 'hlset', 'index',
   'keys', 'len', 'line', 'maparg', 'mapnew', 'matchlist', 'max', 'min',
   'printf', 'rand', 'range', 'repeat', 'setbufvar', 'str2nr', 'string',
   'tabpagenr', 'type', 'winbufnr', 'winheight', 'winlayout', 'winnr',
@@ -70,13 +70,20 @@ for o in OPTIONS
   Check('option exists: ' .. o, exists('&' .. o) == 1)
 endfor
 
-# 'winfixbuf' was added in Vim 9.1.0147, which is later than the plugin's
-# minimum of 9.1.0000.  The plugin probes it, so it must exist on newer builds
-# and may be absent on the earliest supported ones.
-if has('patch-9.1.0147')
-  Check("option exists: winfixbuf (>= 9.1.0147)", exists('&winfixbuf') == 1)
+# 'winfixbuf' arrived in Vim 9.1.0147, which is below the minimum supported
+# version (9.1.1652), so it must always be present.  The plugin still probes
+# it defensively.
+Check("option exists: winfixbuf", exists('&winfixbuf') == 1)
+
+# gettext()/bindtextdomain() are present from Vim 9.1.0509, below the minimum
+# supported version, but they also need the +multi_lang compile-time feature,
+# which can be missing.  The plugin guards bindtextdomain() with try/catch and
+# probes gettext(), so require them only when +multi_lang is compiled in.
+if has('multi_lang')
+  Check("gettext() exists with +multi_lang", exists('*gettext') == 1)
+  Check("bindtextdomain() exists with +multi_lang", exists('*bindtextdomain') == 1)
 else
-  Ok("winfixbuf not required before 9.1.0147 (probed by the plugin)")
+  Ok("gettext()/bindtextdomain() not required without +multi_lang")
 endif
 
 # --- return-value contracts the plugin depends on --------------------------

@@ -40,16 +40,17 @@ packadd zen
 
 *zen-requirements*
 Requirements: ~
-Vim 9.1.0000 or newer with the |+vim9script| feature.
+Vim 9.1.1652 or newer with the |+vim9script| feature.
 
 The plugin is written in the vim9-mix layout (see |vim9-mix|): the version
 check in plugin/zen.vim is legacy Vim script, so on an older Vim it exits
 cleanly with a warning instead of failing on the `:vim9script` command.
 Set |g:zen_disable_legacy_warning| to suppress that warning.
 
-Features that were added after 9.1.0000, such as the 'winfixbuf' option
-(9.1.0147), are probed before use, so the plugin keeps working on the
-earliest supported builds.
+Features such as the 'winfixbuf' option (9.1.0147) and the
+|gettext()|/|bindtextdomain()| functions (9.1.0509) are present in the
+minimum supported version, and the plugin still probes them so it keeps
+working on unusual builds.
 
 The optional |zen-translation| support requires |+multi_lang| and the
 |gettext()| machinery.
@@ -128,7 +129,7 @@ g:zen_decoration_density ~
 g:zen_disable_legacy_warning ~
 boolean, default 0 ~
 When 1, do not print a warning when the plugin is
-loaded on a Vim older than 9.1.0000 (the plugin
+loaded on a Vim older than 9.1.1652 (the plugin
 still does not load, see |zen-requirements|).
 
 *g:zen_callbacks*

@@ -7,7 +7,7 @@
 # zen.vim local CI
 #
 # Runs the same checks as .github/workflows/ci.yml against the Vim found in
-# $PATH (which must be Vim 9.1.0000 or newer).
+# $PATH (which must be Vim 9.1.1652 or newer).
 #
 # Usage:  sh ci.sh
 # ============================================================================
@@ -26,8 +26,8 @@ echo "== $version =="
 
 # Only Vim 9.1+ is supported.
 if ! "$VIM_BIN" -u NONE -i NONE -N -es --not-a-term \
-      --cmd 'if !has("patch-9.1.0000") | cquit 1 | endif' -c 'qa!' </dev/null >/dev/null 2>&1; then
-  echo "zen.vim requires Vim 9.1.0000 or newer" >&2
+      --cmd 'if !has("patch-9.1.1652") | cquit 1 | endif' -c 'qa!' </dev/null >/dev/null 2>&1; then
+  echo "zen.vim requires Vim 9.1.1652 or newer" >&2
   exit 2
 fi
 
