@@ -74,6 +74,14 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- A status line plugin that drops a stale window-local 'statusline' with
+  `setlocal statusline<` (mutedstl does this from a WinEnter/BufWinEnter
+  autocommand) could make the user's status line appear between the pads.
+  Such an autocommand runs after Zen's own and clears the blank expression
+  Zen installed, so the window falls back to the global 'statusline'.  Zen
+  now points the global value at the blank expression too (saved and
+  restored like the other global options), so losing the local value is
+  harmless and the result no longer depends on autocommand order.
 - Writing a config file while Zen is active could bring the status line
   text back.  A `:w` fires BufWritePost, and a "source on save" setup then
   runs `:source` on the config; if that config contains `set statusline=...`

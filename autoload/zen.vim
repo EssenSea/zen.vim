@@ -274,10 +274,11 @@ enddef
 def ApplyRestore()
   if exists('#zen') && exists('t:zen_pads')
     Tranquilize()
-    # Sourcing the config can run `set statusline=...`, which is a global
-    # assignment: Vim copies it into the current window's local value, so a
-    # window that had the blank expression can end up showing the config's
-    # status line text again.  Re-install the expression in every window.
+    # Sourcing the config can run `set statusline=...`, a global assignment:
+    # it changes the global value and Vim also copies it into the current
+    # window's local value.  Re-point both at the blank expression, so a
+    # window that lost (or never had) its local value still renders blanks.
+    &g:statusline = BLANK_STATUSLINE
     HideAllStatuslines()
   endif
 enddef
@@ -1048,6 +1049,10 @@ enddef
 def SaveOptions(): dict<any>
   var opts: dict<any> = {
     'laststatus':    &laststatus,
+    # The global 'statusline' is temporarily replaced while Zen is active so
+    # that a window which loses its local value (see BLANK_STATUSLINE) falls
+    # back to a blank expression instead of the user's status line.
+    'statusline':    &g:statusline,
     'showtabline':   &showtabline,
     'fillchars':     &fillchars,
     'winminwidth':   &winminwidth,
@@ -1088,6 +1093,7 @@ def RestoreOptions(revert: dict<any>)
   # The remaining options are assigned directly (Vim9-typed), so no :set
   # string escaping is involved.
   &laststatus = revert.laststatus
+  &g:statusline = revert.statusline
   &showtabline = revert.showtabline
   &fillchars = revert.fillchars
   &ruler = revert.ruler
@@ -1282,6 +1288,13 @@ def ZenOn(dim_arg: string)
     set winminheight=1 winminwidth=1
     set winheight=1 winwidth=1
     set laststatus=0 showtabline=0 noruler
+    # The global value is the fallback for any window whose local 'statusline'
+    # gets cleared behind our back.  Another plugin (for example a status
+    # line package that runs `setlocal statusline<` on WinEnter/BufWinEnter
+    # to drop a stale local value) would otherwise make the window inherit the
+    # user's status line and draw it between the pads.  With the global set to
+    # the blank expression, that fallback renders as blanks too.
+    &g:statusline = BLANK_STATUSLINE
     set fillchars+=vert:\  fillchars+=stl:\  fillchars+=stlnc:\ 
     set sidescroll=1 sidescrolloff=0
 

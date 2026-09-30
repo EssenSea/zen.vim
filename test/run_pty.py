@@ -116,6 +116,26 @@ redraw!
 execute 'normal ' . "\<C-w>" . 'h'
 redraw!
 
+" A status line plugin may clear the WINDOW-LOCAL 'statusline' behind
+" our back -- mutedstl does exactly that with `setlocal statusline<`
+" from a WinEnter/BufWinEnter autocommand, to drop a stale local value
+" left by another plugin.  The window then inherits the GLOBAL
+" 'statusline'; if Zen left the user's global value in place, the
+" muted status line would be drawn between the pads.  Zen therefore
+" also points the global value at the blank expression, so clearing
+" the local value is harmless.  Clear it in every window to cover that
+" path (the marker must not appear again).
+for s:wi in range(1, winnr('$'))
+  call win_execute(win_getid(s:wi), 'setlocal statusline<')
+endfor
+redraw!
+execute "normal \<C-L>"
+redraw!
+execute 'normal ' . "\<C-w>" . 'l'
+redraw!
+execute 'normal ' . "\<C-w>" . 'k'
+redraw!
+
 echon 'SMARK_END'
 redraw!
 

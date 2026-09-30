@@ -123,6 +123,18 @@ Saving and restoring ~
 	still inherits the global 'statusline', so OnBufWinEnter() /
 	OnWinEnter() call HideAllStatuslines() to give it the expression too.
 
+	The window-local value alone is not enough.  A status line package
+	may drop a stale local value on purpose with `setlocal statusline<`
+	from a WinEnter/BufWinEnter autocommand (mutedstl does this in
+	Reassert()).  That autocommand can run after Zen's own, so it would
+	clear the expression Zen just installed; the window then inherits the
+	GLOBAL 'statusline' and draws the user's status line between the
+	pads.  Zen therefore also points the global value at
+	BLANK_STATUSLINE for the duration of the session (saved and restored
+	like the other global options), so a window whose local value is
+	cleared falls back to blanks as well.  This removes the dependency on
+	the relative order of Zen's and the other plugin's autocommands.
+
 	Tranquilize() blends StatusLine and StatusLineNC into the Normal
 	background colour, so the space-filled row is invisible.  The
 	separator row is hidden by the combination of all three, not by
@@ -144,9 +156,11 @@ Saving and restoring ~
 	because the reload runs :source inside the BufWritePost autocommand,
 	and SourcePost does not fire for that nested source; the timer runs
 	once the whole autocommand chain has finished.  ApplyRestore() re-runs
-	Tranquilize() (which re-asserts laststatus first) and
-	HideAllStatuslines(), so a window whose local value the sourced config
-	overwrote gets the blank expression back.
+	Tranquilize() (which re-asserts laststatus first), re-points the
+	global 'statusline' at BLANK_STATUSLINE, and calls
+	HideAllStatuslines(), so
+	both the global value and the per-window values the sourced config
+	changed get the blank expression back.
 
 ==============================================================================
 4. Highlighting		*zen-internals-highlight*
