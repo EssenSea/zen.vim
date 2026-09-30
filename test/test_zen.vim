@@ -795,6 +795,34 @@ Test('temporary <C-w> mappings are installed and removed', () => {
   assert_true(empty(maparg('<C-w>=', 'n')))
 })
 
+Test('runner keys are shadowed while active and restored on leave', () => {
+  # A runner plugin maps <C-h/j/k/l> to wincmd-based navigation.  Run from
+  # inside a function, that wincmd does not fire WinEnter, so the pads'
+  # bounce-back never runs and the cursor can get stuck in a pad.  Zen
+  # shadows those keys with ZenMove() for the session and restores the user's
+  # mappings afterwards.  maparg() cannot read them back reliably (the <abbr>
+  # flag returns an empty Dict for <C-j>), so this drives real keys.
+  execute 'nnoremap <silent> <C-j> :<C-U>TmuxNavigateDown<CR>'
+  execute 'nnoremap <silent> <C-l> :<C-U>TmuxNavigateRight<CR>'
+  var before_j = maparg('<C-j>', 'n')
+  var before_l = maparg('<C-l>', 'n')
+  zen#Open('80x20')
+  # While active the keys are ZenMove bindings, so they keep the cursor out
+  # of the pads.
+  assert_true(maparg('<C-j>', 'n') =~# 'ZenMove')
+  assert_true(maparg('<C-l>', 'n') =~# 'ZenMove')
+  execute 'normal \<C-j>'
+  assert_true(ZenActive())
+  var cur = winbufnr(0)
+  assert_true(index(values(ZenPads()), cur) < 0)
+  zen#Close()
+  # The user's original mappings come back exactly.
+  assert_equal(before_j, maparg('<C-j>', 'n'))
+  assert_equal(before_l, maparg('<C-l>', 'n'))
+  execute 'silent! nunmap <C-j>'
+  execute 'silent! nunmap <C-l>'
+})
+
 Test('<C-w>o through the plugin closes the other content windows', () => {
   # The mapping must still run a real :only (close the other content
   # windows), then rebuild the pads in the same turn so no one-window frame

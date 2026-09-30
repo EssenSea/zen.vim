@@ -94,6 +94,7 @@ const BLANK_STATUSLINE: string = '%{repeat(" ", winwidth(0))}'
 #   t:zen_orig_tab     tab number Zen started from
 #   t:zen_revert       saved global options
 #   t:zen_maps         temporary mappings to remove on exit
+#   t:zen_runner_keys  saved <C-h/j/k/l> mappings (see InstallRunnerKeys())
 #   t:zen_saved_stl    saved window-local 'statusline' values (see
 #                      SaveLocalStatuslines())
 # ---------------------------------------------------------------------------
@@ -315,6 +316,15 @@ const PAD_DEFS: list<dict<string>> = [
 # "<C-w>b" jump to the top/bottom window, which are pads here.
 const MOVE_KEYS: list<string> = ['h', 'j', 'k', 'l', 't', 'b']
 
+# Keys that a "runner" plugin (tmux-navigator and friends) maps to plain
+# <C-w>h/j/k/l navigation.  Those run `wincmd` from inside a function, and
+# Vim does not fire WinEnter for a wincmd issued that way, so the pads'
+# bounce-back autocommand never runs and the cursor can get stuck in a pad.
+# Zen temporarily shadows these keys with ZenMove() -- saving whatever was
+# mapped and putting it back on exit -- so the navigation stays inside the
+# content windows.
+const RUNNER_KEYS: list<string> = ['<C-h>', '<C-j>', '<C-k>', '<C-l>']
+
 # Window-closing keys routed through ZenClose()/ZenOnly() so the pads are
 # rebuilt in the same event-loop turn as the close, which avoids a visible
 # intermediate frame where only one window is on screen.
@@ -370,6 +380,60 @@ enddef
 def UnmapWindowKeys(keys: list<string>)
   for k in keys
     execute 'silent! nunmap <C-w>' .. escape(k, '|')
+  endfor
+enddef
+
+# The letter carried in a runner key name, e.g. 'j' for '<C-j>'.
+def RunnerDir(key: string): string
+  return key[-2 : -2]
+enddef
+
+# Normalise a key name so '<C-j>' and '<C-J>' compare equal (Vim stores the
+# <C-j> mapping under the canonical '<C-J>' in maplist()).
+def CanonKey(key: string): string
+  return tolower(key)
+enddef
+
+# Shadow the runner keys with ZenMove().  Returns, per key, the maplist()
+# entry that was in effect (an empty Dict when the key was unmapped), so
+# RestoreRunnerKeys() can put the user's mappings back verbatim.
+#
+# maplist() is used instead of maparg(key, 'n', true): maparg() with the
+# {abbr} flag returns an empty Dict for <C-j> and friends, which would have
+# silently dropped the user's mapping on the way out.
+def InstallRunnerKeys(): dict<any>
+  var entries: list<dict<any>> = maplist()
+  var saved: dict<any> = {}
+  for key in RUNNER_KEYS
+    var want = CanonKey(key)
+    var found: dict<any> = {}
+    for m in entries
+      if get(m, 'mode', '') ==# 'n' && CanonKey(get(m, 'lhs', '')) ==# want
+        found = m
+        break
+      endif
+    endfor
+    saved[key] = found
+    execute 'nnoremap <silent> ' .. key
+      .. ' <ScriptCmd>ZenMove(' .. string(RunnerDir(key)) .. ')<CR>'
+  endfor
+  return saved
+enddef
+
+# Undo InstallRunnerKeys(): mapset() the saved entry back, or unmap the key
+# when it had no mapping before.
+def RestoreRunnerKeys(saved: dict<any>)
+  for key in RUNNER_KEYS
+    if !has_key(saved, key)
+      continue
+    endif
+    var info = saved[key]
+    execute 'silent! nunmap ' .. key
+    if !empty(info)
+      # mapset() takes the maplist() entry back verbatim (abbr is 0 for the
+      # normal-mode mappings this deals with).
+      mapset('n', get(info, 'abbr', false), info)
+    endif
   endfor
 enddef
 
@@ -591,6 +655,17 @@ def Blank(repel: string)
     # zero-delay timer rather than feeding a <Plug> key (which would depend
     # on the user's mappings).
     Defer(() => ZenOff())
+  endif
+  # Bounce back to the window that is geometrically next to the pad, using
+  # the screen position like ZenMove()/Adjacent() do -- NOT `wincmd <repel>`.
+  # Vim's wincmd follows the frame tree, which need not match the screen: in
+  # the Zen layout `wincmd j` from the master can land in the LEFT pad, and
+  # `wincmd l` from that pad then cannot find the master again, so the cursor
+  # would stay stuck in the padding.
+  var target = Adjacent(repel)
+  if target > 0
+    noautocmd win_gotoid(target)
+    return
   endif
   execute 'noautocmd wincmd ' .. repel
 enddef
@@ -1354,6 +1429,7 @@ def ZenOn(dim_arg: string)
 
     t:zen_disabled = DisablePlugins()
     t:zen_maps = InstallMaps()
+    t:zen_runner_keys = InstallRunnerKeys()
 
     HideLinenr()
 
@@ -1462,6 +1538,7 @@ def AbortOn()
   endif
 
   UnmapWindowKeys(get(t:, 'zen_maps', []))
+  RestoreRunnerKeys(get(t:, 'zen_runner_keys', {}))
 
   var revert = get(t:, 'zen_revert', {})
   var disabled = get(t:, 'zen_disabled', {})
@@ -1524,6 +1601,7 @@ def ZenOff()
   augroup! zen_pad
 
   UnmapWindowKeys(get(t:, 'zen_maps', []))
+  RestoreRunnerKeys(get(t:, 'zen_runner_keys', {}))
 
   var revert   = t:zen_revert
   var disabled = get(t:, 'zen_disabled', {})

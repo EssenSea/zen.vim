@@ -11,6 +11,12 @@ on [Keep a Changelog](https://keepachangelog.com/).
   the Zen tab (the new tab is an ordinary tab without a session), and
   switching back to the Zen tab finds it still active.  A plain `:tabnext` /
   `:tabprevious` still leaves Zen, and `:q` on the Zen tab still closes it.
+- `<C-h>`, `<C-j>`, `<C-k>` and `<C-l>` are shadowed with ZenMove() while Zen
+  is active, and restored on exit.  A runner plugin such as
+  vim-tmux-navigator maps these keys to a function that runs `wincmd`; Vim
+  does not fire WinEnter for a wincmd issued from inside a function, so the
+  pad bounce-back never ran and the cursor could get stuck in a pad.  The
+  previous mapping is saved with maplist() and restored with mapset().
 - The pad windows now stay out of the cursor's way: `<C-w>h`, `<C-w>j`,
   `<C-w>k`, `<C-w>l`, `<C-w>t` and `<C-w>b` do nothing when they would move
   into a pad, so the cursor no longer flashes into the padding.  Movement

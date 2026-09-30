@@ -210,8 +210,23 @@ Vim has no way to stop the cursor from entering a window, so the movement
 keys `<C-w>h/j/k/l/t/b` are routed through ZenMove().  It uses Adjacent() to
 find the window the move would reach; when that window is a pad, the move is
 dropped and the cursor does not leave the content column.  Moves between
-content windows are unaffected.  A fallback autocommand bounces the cursor
-back if it reaches a pad some other way (for example with the mouse).
+content windows are unaffected.
+
+A fallback autocommand bounces the cursor back if it reaches a pad some
+other way (for example with the mouse).  It bounces to the window
+geometrically next to the pad, via Adjacent(), rather than with `wincmd
+<repel>`: a wincmd follows the frame tree, and in the Zen layout the
+frame tree does not match the screen (from the master `wincmd j` can land
+in the left pad, from which `wincmd l` then cannot find the master).
+
+The fallback only helps while Vim fires WinEnter.  Some plugins
+(tmux-navigator and similar) map `<C-h/j/k/l>` to a function that runs
+`wincmd`; Vim does not fire WinEnter for a wincmd issued from inside a
+function, so the fallback never runs and the cursor can stay stuck in a
+pad.  Zen therefore shadows `<C-h/j/k/l>` with ZenMove() for the session
+(see RUNNER_KEYS / InstallRunnerKeys()); the key's previous mapping is
+saved with maplist() and put back with mapset() on exit, or removed when
+it had none.
 
 `<C-w>c` and `<C-w>o` are routed through ZenClose() and ZenOnly().  A plain
 `:close` / `:only` removes the window first and only afterwards lets the
