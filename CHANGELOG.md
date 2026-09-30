@@ -74,6 +74,15 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Leaving Zen could leave a window with a blank status line.  The blank
+  value is a WINDOW-LOCAL expression, and restoring the global 'statusline'
+  on exit does not clear a window-local value, so a surviving window kept
+  the expression and showed no text (and no plugin could bring it back,
+  because Setup()-style code only touches the global value).  Zen now
+  snapshots each original window's local 'statusline' on entry and restores
+  it (or clears it, when it was inheriting the global value) on exit, and a
+  `redrawstatus!` from a zero-delay timer repaints the row once the main
+  loop is back in control.
 - A status line plugin that drops a stale window-local 'statusline' with
   `setlocal statusline<` (mutedstl does this from a WinEnter/BufWinEnter
   autocommand) could make the user's status line appear between the pads.

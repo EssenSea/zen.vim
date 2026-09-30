@@ -546,6 +546,36 @@ Test('leaving does not leak the blank statusline into other windows', () => {
   endfor
 })
 
+Test('leaving clears the blank expression from surviving windows', () => {
+  # Zen installs BLANK_STATUSLINE as a WINDOW-LOCAL value.  Restoring the
+  # global 'statusline' on exit does not clear a window-local value, so a
+  # surviving window could keep the blank expression and show an empty status
+  # line forever (no plugin can fix that by re-running Setup(), which only
+  # touches the global value).  ZenOn() snapshots the original windows and
+  # ZenOff() clears/restores them; this asserts no window still carries the
+  # expression once Zen is left.
+  split
+  setlocal statusline=ZZOWNLOCAL
+  zen#Open('80x20')
+  zen#Close()
+  for info in getwininfo()
+    if info.tabnr != tabpagenr()
+      continue
+    endif
+    var local = getwinvar(info.winid, '&statusline')
+    assert_true(local !~# 'repeat(" ", winwidth(0))')
+  endfor
+  # The window that had its own local value must have got it back.
+  var owned = 0
+  for info in getwininfo()
+    if info.tabnr == tabpagenr() && getwinvar(info.winid, '&statusline') ==# 'ZZOWNLOCAL'
+      owned += 1
+    endif
+  endfor
+  assert_equal(1, owned)
+  setlocal statusline<
+})
+
 Test('<C-w>h/j/k/l/t/b never move into a pad', () => {
   zen#Open('80x20')
   var master = winnr()

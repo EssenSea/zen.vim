@@ -135,6 +135,16 @@ Saving and restoring ~
 	cleared falls back to blanks as well.  This removes the dependency on
 	the relative order of Zen's and the other plugin's autocommands.
 
+	Restoring the global value on exit is not enough either: a
+	window-local expression would survive it, leaving a window with a
+	blank status line and nothing (Setup()-style code only ever touches
+	the global value) able to bring it back.  ZenOn() therefore snapshots
+	each original window's local 'statusline' with
+	SaveLocalStatuslines(), and ZenOff() / AbortOn() call
+	RestoreLocalStatuslines() after restoring the global option: a window
+	that inherited the global value gets `setlocal statusline<`, and a
+	window that had its own value gets it back.
+
 	Tranquilize() blends StatusLine and StatusLineNC into the Normal
 	background colour, so the space-filled row is invisible.  The
 	separator row is hidden by the combination of all three, not by

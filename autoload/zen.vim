@@ -94,6 +94,8 @@ const BLANK_STATUSLINE: string = '%{repeat(" ", winwidth(0))}'
 #   t:zen_orig_tab     tab number Zen started from
 #   t:zen_revert       saved global options
 #   t:zen_maps         temporary mappings to remove on exit
+#   t:zen_saved_stl    saved window-local 'statusline' values (see
+#                      SaveLocalStatuslines())
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -483,6 +485,23 @@ enddef
 
 def CancelDeferred(key: string)
   DEFERRED[key] = false
+enddef
+
+# Force a status line repaint from the main loop.
+#
+# Leaving Zen rebuilds the layout and flips 'laststatus' back to its saved
+# value in the same call.  A redraw issued there can land while the layout is
+# still settling, leaving the status line row drawn without its text until
+# something else happens to redraw it.  A zero-delay timer runs after ZenOff()
+# has fully returned and the main loop is back in control, which repaints the
+# row for sure.  It deliberately touches no session state: by the time it runs
+# the augroups and t:zen_* variables are gone.
+def ScheduleStatusRedraw()
+  if has('timers')
+    timer_start(0, (_: number) => execute('redrawstatus!'))
+  else
+    redrawstatus!
+  endif
 enddef
 
 # Forget every pending action (used when the session is torn down).
@@ -1045,6 +1064,58 @@ def EnablePlugins(state: dict<bool>)
   endif
 enddef
 
+# Snapshot each window's local 'statusline' for the current tab.
+#
+# Zen installs BLANK_STATUSLINE as a WINDOW-LOCAL value in every window of
+# its tab.  Restoring the global 'statusline' on exit does not clear a
+# window-local value, so a window that keeps the expression would show a
+# blank status line afterwards -- and no plugin can fix that by re-running
+# Setup(), which only ever touches the global value.  Recording the value
+# each window had before Zen lets us put it back.
+#
+# A window whose local value equals the global one is treated as "inheriting"
+# (the common case): on exit it is cleared with `setlocal statusline<` so it
+# follows the restored global value again.  A window with its own local value
+# keeps it and gets that value back verbatim.
+def SaveLocalStatuslines(): dict<string>
+  var snapshot: dict<string> = {}
+  var tabnr = tabpagenr()
+  var global = &g:statusline
+  for w in getwininfo()
+    if w.tabnr != tabnr
+      continue
+    endif
+    var local = getwinvar(w.winid, '&statusline')
+    # 'inherit' means "clear it on exit"; any other value is restored verbatim.
+    snapshot[string(w.winid)] = local ==# global ? 'inherit' : local
+  endfor
+  return snapshot
+enddef
+
+# Undo SaveLocalStatuslines() for the current tab.
+#
+# Called after the global 'statusline' has been restored.  A window listed
+# with 'inherit' gets `setlocal statusline<` (follow the global value again);
+# a window with a saved value gets it back.  Windows that were not part of the
+# snapshot are left alone -- they belong to tabs Zen never touched.
+def RestoreLocalStatuslines(snapshot: dict<string>)
+  for w in getwininfo()
+    if w.tabnr != tabpagenr()
+      continue
+    endif
+    var key = string(w.winid)
+    if !has_key(snapshot, key)
+      continue
+    endif
+    var want = snapshot[key]
+    if want ==# 'inherit'
+      win_execute(w.winid, 'setlocal statusline<')
+    else
+      win_execute(w.winid, '&l:statusline = ' .. string(want))
+    endif
+  endfor
+enddef
+
 # Collect the global options that must be saved and restored.
 def SaveOptions(): dict<any>
   var opts: dict<any> = {
@@ -1259,6 +1330,9 @@ def ZenOn(dim_arg: string)
   var orig_tab = tabpagenr()
   var orig_winid = win_getid()
   var revert = SaveOptions()
+  # Snapshot the original tab's window-local 'statusline' values before Zen
+  # overwrites any of them (see SaveLocalStatuslines()).
+  var saved_statuslines = SaveLocalStatuslines()
 
   # tab split: keep the original tab intact and build the layout in a copy
   # that is closed again on exit.
@@ -1270,6 +1344,7 @@ def ZenOn(dim_arg: string)
   try
     t:zen_orig_winid = orig_winid
     t:zen_orig_tab = orig_tab
+    t:zen_saved_stl = saved_statuslines
     t:zen_master = winbufnr(0)
     t:zen_winid = win_getid()
     t:zen_dim = dim
@@ -1391,6 +1466,7 @@ def AbortOn()
   var revert = get(t:, 'zen_revert', {})
   var disabled = get(t:, 'zen_disabled', {})
   var saved_highlights = get(t:, 'zen_highlights', [])
+  var saved_statuslines = get(t:, 'zen_saved_stl', {})
   var orig_winid = get(t:, 'zen_orig_winid', 0)
   var orig_tab = get(t:, 'zen_orig_tab', 0)
   var zen_tab = tabpagenr()
@@ -1409,11 +1485,16 @@ def AbortOn()
   if !empty(revert)
     RestoreOptions(revert)
   endif
+  # Put back (or clear) the window-local 'statusline' values the session
+  # overwrote, now that the global value is restored.  Without this a window
+  # would keep the blank expression and no plugin could bring its status line
+  # back, because Setup()-style code only touches the global value.
+  RestoreLocalStatuslines(saved_statuslines)
   RestoreHighlights(saved_highlights)
   EnablePlugins(disabled)
 
   # Same as ZenOff(): show the restored status line right away.
-  redraw!
+  redrawstatus!
 
   # Reset the deferred actions and the synchronous re-entrancy guards in case
   # the failure interrupted one.
@@ -1421,6 +1502,9 @@ def AbortOn()
   zenoff_tab = 0
   resizing = false
   reanchoring = false
+
+  # Same as ZenOff(): repaint the status line once the main loop is back.
+  ScheduleStatusRedraw()
 enddef
 
 # Leave Zen and transplant the content-window layout back to the
@@ -1444,9 +1528,11 @@ def ZenOff()
   var revert   = t:zen_revert
   var disabled = get(t:, 'zen_disabled', {})
   var orig_winid = get(t:, 'zen_orig_winid', 0)
-  # Read the saved highlights while still in the Zen tab: t: variables are
-  # tab-local and the original tab is restored before the end of this function.
+  # Read the saved highlights and status lines while still in the Zen tab:
+  # t: variables are tab-local and the original tab is restored before the end
+  # of this function.
   var saved_highlights = get(t:, 'zen_highlights', [])
+  var saved_statuslines = get(t:, 'zen_saved_stl', {})
 
   # Capture the content-window layout of the Zen tab as a winlayout() tree
   # with the pad windows removed.  This reproduces nested layouts exactly.
@@ -1475,6 +1561,11 @@ def ZenOff()
   endif
 
   RestoreOptions(revert)
+  # Put back (or clear) the window-local 'statusline' values the session
+  # overwrote, now that the global value is restored.  Without this a window
+  # would keep the blank expression and no plugin could bring its status line
+  # back, because Setup()-style code only touches the global value.
+  RestoreLocalStatuslines(saved_statuslines)
   # Restore the highlight groups we changed instead of reloading the color
   # scheme, which is much more expensive and would re-trigger ColorScheme.
   RestoreHighlights(saved_highlights)
@@ -1482,8 +1573,10 @@ def ZenOff()
   EnablePlugins(disabled)
 
   # The status line is a %{} expression again as soon as the original windows
-  # are back, so a single forced redraw is enough to show it immediately.
-  redraw!
+  # are back.  redrawstatus! is required: a plain redraw! during the layout
+  # change can leave the status line row without its text until the next
+  # natural redraw.
+  redrawstatus!
 
   var callbacks = get(g:, 'zen_callbacks', [])
   if len(callbacks) > 1 && type(callbacks[1]) == v:t_func
@@ -1493,6 +1586,9 @@ def ZenOff()
   if exists('#User#ZenLeave')
     doautocmd <nomodeline> User ZenLeave
   endif
+
+  # Repaint the status line once the main loop is back in control.
+  ScheduleStatusRedraw()
 enddef
 
 # ---------------------------------------------------------------------------
