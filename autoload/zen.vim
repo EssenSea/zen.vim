@@ -274,6 +274,11 @@ enddef
 def ApplyRestore()
   if exists('#zen') && exists('t:zen_pads')
     Tranquilize()
+    # Sourcing the config can run `set statusline=...`, which is a global
+    # assignment: Vim copies it into the current window's local value, so a
+    # window that had the blank expression can end up showing the config's
+    # status line text again.  Re-install the expression in every window.
+    HideAllStatuslines()
   endif
 enddef
 

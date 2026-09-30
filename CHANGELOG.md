@@ -74,6 +74,15 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Writing a config file while Zen is active could bring the status line
+  text back.  A `:w` fires BufWritePost, and a "source on save" setup then
+  runs `:source` on the config; if that config contains `set statusline=...`
+  (a global assignment), Vim copies the value into the current window's
+  local 'statusline', overwriting the blank expression, and the window keeps
+  drawing the config's status line.  `ApplyRestore()` now calls
+  `HideAllStatuslines()` in addition to `Tranquilize()`, so the blank
+  expression is re-installed in every window after such a reload.  Covered
+  by the PTY check below.
 - The built-in status line text could reappear between the pads on some
   window-switch paths.  Blanking the *string* relied on autocmds
   (`OnWinEnter`, the pads' `WinLeave`) that a `noautocmd wincmd` skips, so a

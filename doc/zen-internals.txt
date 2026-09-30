@@ -128,18 +128,25 @@ Saving and restoring ~
 	separator row is hidden by the combination of all three, not by
 	'laststatus' alone.
 
-	Sourcing a vimrc while Zen is active can change two things: it may set
-	'laststatus' back to a nonzero value (some configs force a status line
-	everywhere), and a colorscheme it runs may re-set StatusLine /
-	StatusLineNC from its ColorScheme autocommands after Tranquilize()
-	already blended them.  Either makes the blank separator rows visible
-	again.  Zen re-asserts both from OnBufWinEnter(), OnWinEnter() and
+	Sourcing a vimrc while Zen is active can change three things: it may
+	set 'laststatus' back to a nonzero value (some configs force a status
+	line everywhere); it may run `set statusline=...`, which is a global
+	assignment that Vim copies into the current window's local value,
+	overwriting BLANK_STATUSLINE there so that window shows the config's
+	status line text again; and a colorscheme it runs may re-set
+	StatusLine / StatusLineNC from its ColorScheme autocommands after
+	Tranquilize() already blended them.  Any of them makes a separator
+	row visible again.
+
+	Zen re-asserts all of them from OnBufWinEnter(), OnWinEnter() and
 	Tranquilize(), and after a `:w` that may have sourced a config, from a
 	zero-delay timer scheduled by ScheduleRestore().  The timer is needed
 	because the reload runs :source inside the BufWritePost autocommand,
 	and SourcePost does not fire for that nested source; the timer runs
-	once the whole autocommand chain has finished, and calls Tranquilize()
-	(which re-asserts laststatus first).
+	once the whole autocommand chain has finished.  ApplyRestore() re-runs
+	Tranquilize() (which re-asserts laststatus first) and
+	HideAllStatuslines(), so a window whose local value the sourced config
+	overwrote gets the blank expression back.
 
 ==============================================================================
 4. Highlighting		*zen-internals-highlight*

@@ -91,6 +91,31 @@ set columns=80
 redraw!
 set columns=90
 redraw!
+
+" Writing a config that is sourced on BufWritePost can run
+" `set statusline=...`.  That is a global assignment and Vim copies
+" it into the current window's local value, so this window would show
+" the config's status line until HideAllStatuslines() re-installs the
+" blank expression.  The config text avoids the literal marker so the
+" edited buffer itself cannot be mistaken for a leak.
+call writefile(['set laststatus=2',
+      \ "let &statusline = 'ZZ' . 'DEFAULTSTATUSZZ'"], '/tmp/zzpty.conf')
+autocmd BufWritePost *.conf source %
+execute 'edit /tmp/zzpty.conf'
+write
+sleep 300m
+redraw!
+execute "normal \<C-L>"
+redraw!
+execute 'normal j'
+redraw!
+execute 'normal k'
+redraw!
+execute 'normal ' . "\<C-w>" . 'l'
+redraw!
+execute 'normal ' . "\<C-w>" . 'h'
+redraw!
+
 echon 'SMARK_END'
 redraw!
 
