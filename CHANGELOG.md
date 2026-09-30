@@ -31,6 +31,15 @@ on [Keep a Changelog](https://keepachangelog.com/).
   blended in when present.  The status line is hidden for every window
   (see the Fixed entry below), and the option is only rewritten when it
   actually differs, to avoid a redraw when the cursor bounces out.
+- The status line is now hidden with a lazy `%{}` expression instead of a
+  plain `' '` string: every window in the Zen tab gets
+  `'statusline' = '%{repeat(" ", winwidth(0))}'`.  The expression is
+  re-evaluated on each redraw and always renders as blanks, so the built-in
+  default text can no longer appear between the pads, whatever key sequence,
+  resize, `:win_execute()` or `'laststatus'` value is involved.  The
+  `WinLeave` autocmd that used to re-assert the blank value on every pad is
+  gone, and leaving Zen forces a redraw so the restored status line shows at
+  once.
 - Raised the minimum supported Vim to **9.1.1652** (it was 9.1.0000).
   plugin/zen.vim, `ci.sh` and the CI matrix now require 9.1.1652, which
   covers the features used by the implementation: gettext()/bindtextdomain()
@@ -65,6 +74,14 @@ on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- The built-in status line text could reappear between the pads on some
+  window-switch paths.  Blanking the *string* relied on autocmds
+  (`OnWinEnter`, the pads' `WinLeave`) that a `noautocmd wincmd` skips, so a
+  path that did not run them left the row showing the default text.  The
+  blank value is now a `%{}` expression (see Changed above): the invariant no
+  longer depends on any event being observed, and a PTY regression check
+  asserts that no default status line text reaches the screen while Zen is
+  active.
 - Entering or leaving Zen printed `No matching autocommands: User
   ZenEnter` / `ZenLeave` when no user autocommand listened for those events.
   The `:doautocmd User ZenEnter/ZenLeave` calls are now guarded by

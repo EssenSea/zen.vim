@@ -33,6 +33,9 @@ LOG = OUT + '.driver'
 DRIVER = r'''
 set nocompatible
 set nomore noswapfile
+" A loud global 'statusline': any window that is not given the blank
+" expression would draw this text, which the PTY driver watches for.
+set statusline=ZZDEFAULTSTATUSZZ
 let s:log = []
 runtime plugin/zen.vim
 call add(s:log, 'command=' . exists(':Zen'))
@@ -40,7 +43,10 @@ call add(s:log, 'command=' . exists(':Zen'))
 " Enter Zen in a real terminal.
 call zen#Open('60x16')
 call add(s:log, 'entered=' . exists('#zen') . ',' . winnr('$'))
-redraw
+" Sentinel: the driver only counts ZZDEFAULTSTATUSZZ after this point,
+" so text drawn before Zen is not mistaken for a leak.
+echon 'SMARK_BEGIN'
+redraw!
 
 " A full-width help window must be pulled back into the content column, so
 " only the top/bottom pads remain full width.
@@ -69,6 +75,24 @@ call add(s:log, 'moves_left_master=' . s:entered)
 " A real screen resize exercises WinResized/VimResized.
 set columns=90
 call add(s:log, 'resized=' . winnr('$'))
+
+" While Zen is active no status line text may reach the screen, no
+" matter which key or resize path is taken.  redraw! forces a full
+" repaint each time, so a leaked default status line would show up in
+" the terminal output the driver scans.
+for s:k2 in ['h', 'j', 'k', 'l', 't', 'b']
+  execute 'normal ' . "\<C-w>" . s:k2
+  redraw!
+endfor
+" <C-L> is the redraw command; it must not bring a status line back.
+execute "normal \<C-L>"
+redraw!
+set columns=80
+redraw!
+set columns=90
+redraw!
+echon 'SMARK_END'
+redraw!
 
 " :only must re-anchor rather than leave Zen.
 split
@@ -120,15 +144,28 @@ def set_winsize(fd, rows, cols):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', rows, cols, 0, 0))
 
 
+RAW = bytearray()
+
+
 def drain(fd, seconds):
     end = time.time() + seconds
     while time.time() < end:
         r, _, _ = select.select([fd], [], [], 0.1)
         if r:
             try:
-                os.read(fd, 4096)
+                RAW.extend(os.read(fd, 65536))
             except OSError:
                 break
+
+
+def count_between(begin, end, needle):
+    """Occurrences of needle between the begin and end sentinels."""
+    text = bytes(RAW).decode('utf-8', 'replace')
+    b = text.find(begin)
+    e = text.find(end)
+    if b < 0 or e < 0 or e < b:
+        return -1
+    return text[b + len(begin):e].count(needle)
 
 
 def main():
@@ -165,6 +202,17 @@ def main():
     except ChildProcessError:
         pass
     os.unlink(script.name)
+
+    # No default status line text may have reached the screen while Zen was
+    # active.  Count occurrences of the loud global 'statusline' between the
+    # two sentinels emitted by the driver, and append the result to the log so
+    # pty.sh can assert it is zero.
+    leaks = count_between('SMARK_BEGIN', 'SMARK_END', 'ZZDEFAULTSTATUSZZ')
+    try:
+        with open(LOG, 'a') as fh:
+            fh.write('statusline_leaks=' + str(leaks) + '\n')
+    except OSError:
+        pass
     return 0
 
 

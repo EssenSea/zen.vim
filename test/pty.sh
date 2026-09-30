@@ -45,6 +45,10 @@ check_grep ":only re-anchors Zen"             '^only_reanchor=1,5,1,1'
 check_grep "<C-w>o / <C-w>c routed via plugin" '^only_mapped=1,1'
 check_grep "<C-w>c re-anchors in place"        '^close_reanchor=1,5,1,1'
 check_grep "leaves with one window and tab"   '^left=0,1,1'
+# The loud global 'statusline' (ZZDEFAULTSTATUSZZ) must not appear in the
+# rendered output while Zen is active: no key or resize path may bring the
+# built-in status line text back.
+check_grep "no status line text leaks during Zen" '^statusline_leaks=0$'
 
 if [ "$fail" -eq 0 ]; then
   echo "pty checks: all passed"

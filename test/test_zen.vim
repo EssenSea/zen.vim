@@ -90,6 +90,26 @@ def ZenPads(): dict<number>
   return get(t:, 'zen_pads', {})
 enddef
 
+# True when the window's 'statusline' is the lazy blank expression and it
+# really evaluates to blanks.  Zen installs '%{repeat(" ", winwidth(0))}'
+# instead of a plain ' ' string so that no autocmd, win_execute() or
+# 'laststatus' value can make Vim draw the built-in default text in the
+# separator row ever again.
+def StatuslineRendersBlank(w: number): bool
+  var stl = getwinvar(w, '&statusline')
+  # Strip the single %{...} wrapper and evaluate the expression.
+  if stl !~# '^%{.*}$'
+    return false
+  endif
+  var expr = stl[2 : -2]
+  try
+    var rendered = eval(expr)
+    return type(rendered) == v:t_string && rendered =~# '^ *$'
+  catch
+    return false
+  endtry
+enddef
+
 def ThrowingCallback()
   throw 'callback boom'
 enddef
@@ -470,9 +490,9 @@ Test('pads look like plain background', () => {
     assert_false(getwinvar(w, '&cursorline'))
     assert_false(getwinvar(w, '&cursorcolumn'))
     assert_equal('', getwinvar(w, '&colorcolumn'))
-    # A single space, not the empty string: an empty 'statusline' makes Vim
-    # draw the built-in default text in the separator row.
-    assert_equal(' ', getwinvar(w, '&statusline'))
+    # The lazy blank expression renders as blanks and cannot fall back to the
+    # built-in default text the way an empty 'statusline' would.
+    assert_true(StatuslineRendersBlank(w))
   endfor
   zen#Close()
 })
@@ -486,7 +506,7 @@ Test('every window hides its status line', () => {
   zen#Open('80x20')
   assert_equal(0, &laststatus)
   for i in range(1, winnr('$'))
-    assert_equal(' ', getwinvar(i, '&statusline'))
+    assert_true(StatuslineRendersBlank(i))
   endfor
   # 'stl'/'stlnc' are filled with spaces, so the blank row is invisible.
   assert_true(&fillchars =~# 'stl: ')
@@ -501,7 +521,7 @@ Test('status line hiding is applied again after re-anchoring', () => {
   sleep 30m
   assert_true(ZenActive())
   for i in range(1, winnr('$'))
-    assert_equal(' ', getwinvar(i, '&statusline'))
+    assert_true(StatuslineRendersBlank(i))
   endfor
   zen#Close()
 })
@@ -518,7 +538,7 @@ Test('leaving does not leak the blank statusline into other windows', () => {
   endfor
   zen#Open('80x20')
   for i in range(1, winnr('$'))
-    assert_equal(' ', getwinvar(i, '&statusline'))
+    assert_true(StatuslineRendersBlank(i))
   endfor
   zen#Close()
   for i in range(1, winnr('$'))

@@ -65,18 +65,23 @@ const TRANQUILIZED_GROUPS: list<string> = [
   'StatusLine', 'StatusLineNC', 'SignColumn',
 ]
 
-# Content used for the window-local 'statusline' while Zen is active.
+# Value used for the window-local 'statusline' of every window in the Zen
+# tab, while Zen is active.
 #
 # 'laststatus' = 0 removes the status line of the bottom-most window of a
 # column, but a window that has another window below it *always* keeps a
 # one-row status line to separate the two (see |status-line|).  With the
 # default (empty) 'statusline', Vim draws the built-in default text there
 # (buffer name, ruler, ...), which shows up as a coloured bar between the
-# pads.  A single space is the smallest non-empty value, so Vim fills the row
-# with the 'stl'/'stlnc' 'fillchars' (a space, set in ZenOn) instead.  The
-# value lives in this constant so InitPad() and HideStatusline() cannot drift
-# apart again.
-const BLANK_STATUSLINE: string = ' '
+# pads.
+#
+# Instead of writing a blank *string* and then having to re-assert it from
+# autocmds (every window has to be revisited after each event that could
+# reset it, which is fragile), every window gets a %{} *expression* that is
+# re-evaluated on each redraw.  The expression always renders as blanks, so
+# no autocmd, no win_execute() and no 'laststatus' value can ever bring the
+# default text back: the invariant lives in the value itself.
+const BLANK_STATUSLINE: string = '%{repeat(" ", winwidth(0))}'
 
 # ---------------------------------------------------------------------------
 # Session state (stored in tab-local variables).
@@ -160,26 +165,25 @@ def Relsz(expr: any, limit: number): number
   return limit * str2nr(e[: -2]) / 100
 enddef
 
-# Hide the status line of the current window.
-#
-# The option must be set to a non-empty blank string: an empty 'statusline'
-# makes Vim fall back to the built-in default text, which is exactly the row
-# we are trying to hide.  Setting it unconditionally would redraw on every
-# cursor bounce out of a pad, so only touch the option when it differs.
+# Hide the status line of the current window by installing BLANK_STATUSLINE.
 def HideStatusline()
   if &l:statusline !=# BLANK_STATUSLINE
     &l:statusline = BLANK_STATUSLINE
   endif
 enddef
 
-# Hide the status line of every window in the current tab page without leaving
-# the current window.  Used on entry and when the layout is rebuilt, since the
-# master window and the three pads that have a window below them all need it.
+# Install BLANK_STATUSLINE in every window of the current tab page, without
+# leaving the current window.  Called on entry, after the layout is rebuilt
+# and whenever a new window may have appeared in the Zen tab.
 #
 # getwininfo() without an argument returns the windows of *all* tab pages, so
 # the current tab number is checked: ZenOn() creates the session in a new tab
 # via `tab split`, and touching the original tab would leave its windows with
 # a blank 'statusline' after :Zen!.
+#
+# The non-current windows are reached through :win_execute(), which executes
+# its argument with the syntax of the calling script (Vim9 here), so the Vim9
+# form `&l:statusline = ...` is correct; `let &l:...` would raise E1126.
 def HideAllStatuslines()
   var tabnr = tabpagenr()
   for winid in getwininfo()
@@ -188,9 +192,6 @@ def HideAllStatuslines()
     if win_getid() == winid
       HideStatusline()
     else
-      # `&l:` is required: a bare `&statusline =` would assign the global
-      # default, not the window-local value.  string() quotes the space so no
-      # manual escaping is needed.
       win_execute(winid, '&l:statusline = ' .. string(BLANK_STATUSLINE))
     endif
   endfor
@@ -399,7 +400,6 @@ def BindPadAutocmd(bufnr: number, repel: string)
   augroup zen_pad
     execute 'autocmd WinEnter,CursorMoved <buffer=' .. bufnr .. '> ++nested'
       .. ' Blank("' .. repel .. '")'
-    execute 'autocmd WinLeave <buffer=' .. bufnr .. '> HideStatusline()'
   augroup END
 enddef
 
@@ -1103,14 +1103,18 @@ def OnBufWinEnter()
   endif
   ReassertLaststatus()
   HideLinenr()
-  HideStatusline()
+  # A window that appeared in the Zen tab inherits the global 'statusline';
+  # give it the BLANK_STATUSLINE expression too.  This is not what keeps the
+  # default text away (the expression does that by itself) but what keeps a
+  # *newly created* window from ever showing it.
+  HideAllStatuslines()
   ScheduleConfine()
 enddef
 
 def OnWinEnter()
   if exists('t:zen_pads')
     ReassertLaststatus()
-    HideStatusline()
+    HideAllStatuslines()
   endif
 enddef
 
@@ -1390,6 +1394,9 @@ def AbortOn()
   RestoreHighlights(saved_highlights)
   EnablePlugins(disabled)
 
+  # Same as ZenOff(): show the restored status line right away.
+  redraw!
+
   # Reset the deferred actions and the synchronous re-entrancy guards in case
   # the failure interrupted one.
   ResetDeferred()
@@ -1455,6 +1462,10 @@ def ZenOff()
   RestoreHighlights(saved_highlights)
 
   EnablePlugins(disabled)
+
+  # The status line is a %{} expression again as soon as the original windows
+  # are back, so a single forced redraw is enough to show it immediately.
+  redraw!
 
   var callbacks = get(g:, 'zen_callbacks', [])
   if len(callbacks) > 1 && type(callbacks[1]) == v:t_func

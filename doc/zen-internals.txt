@@ -107,11 +107,21 @@ Saving and restoring ~
 
 	When 'statusline' is empty Vim draws the built-in default text
 	(buffer name, ruler, ...) in that row, which shows up as a coloured
-	bar.  Zen therefore sets the window-local 'statusline' to a single
-	space (BLANK_STATUSLINE) for *every* window in the tab page, and sets
-	the 'stl'/'stlnc' 'fillchars' to a space as well.
-	HideAllStatuslines() does this without leaving the current window,
-	using |win_execute()|.
+	bar.  Zen therefore gives *every* window in the tab page the
+	window-local 'statusline' expression '%{repeat(" ", winwidth(0))}'
+	(BLANK_STATUSLINE), and sets the 'stl'/'stlnc' 'fillchars' to a space
+	as well.  HideAllStatuslines() does this without leaving the current
+	window, using |win_execute()|.
+
+	A %{} expression is used instead of a plain ' ' string on purpose.
+	Each redraw re-evaluates it, so the row always renders as blanks: the
+	blank value is an invariant of the option itself, no longer carried
+	by an autocommand after every window switch.  A string, by contrast,
+	only stayed blank while some autocommand (OnWinEnter, or the pads'
+	WinLeave) re-set it, and a noautocmd wincmd skips those, which could
+	leave the default text visible.  A new window appearing in the tab
+	still inherits the global 'statusline', so OnBufWinEnter() /
+	OnWinEnter() call HideAllStatuslines() to give it the expression too.
 
 	Tranquilize() blends StatusLine and StatusLineNC into the Normal
 	background colour, so the space-filled row is invisible.  The
